@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import PipelineTrack from './PipelineTrack';
 import StatusTag from './StatusTag';
 
-export default function ProspectsView({ restaurants, onToggle, onSelectAll, onDeselectAll, onRunAudit }) {
+export default function ProspectsView({ restaurants, onToggle, onSelectAll, onDeselectAll, onRunAudit, onScrape, scraping, scrapeError }) {
   const [sortBy, setSortBy] = useState('photoScore');
   const [sortDir, setSortDir] = useState('asc');
   const [filterStatus, setFilterStatus] = useState('all');
@@ -37,10 +37,15 @@ export default function ProspectsView({ restaurants, onToggle, onSelectAll, onDe
           <div style={styles.topMeta}>New Delhi · {restaurants.length} restaurants scraped</div>
         </div>
         <div style={styles.topActions}>
-          <button style={styles.btnGhost} onClick={() => alert('Scraper integration coming in Step 2')}>
-            <i className="ti ti-refresh" style={{ fontSize: 13 }} />
-            Scrape
-          </button>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+            <button style={{ ...styles.btnGhost, opacity: scraping ? 0.6 : 1 }} onClick={onScrape} disabled={scraping}>
+              <i className={`ti ${scraping ? 'ti-loader' : 'ti-refresh'}`} style={{ fontSize: 13 }} />
+              {scraping ? 'Scraping...' : 'Scrape'}
+            </button>
+            {scrapeError && (
+              <span style={{ fontSize: 11, color: '#E24B4A', maxWidth: 240, textAlign: 'right' }}>{scrapeError}</span>
+            )}
+          </div>
           <button
             style={{ ...styles.btnPrimary, opacity: selected.length === 0 ? 0.45 : 1 }}
             disabled={selected.length === 0}

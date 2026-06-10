@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { useKeys } from '../context/KeysContext';
 
 function EmptyView({ icon, title, description, cta, onCta }) {
   return (
@@ -101,30 +102,67 @@ export function SentView({ restaurants }) {
 }
 
 export function SettingsView() {
+  const { keys, saveKeys } = useKeys();
+  const [form, setForm] = useState({ ...keys });
+  const [saved, setSaved] = useState(false);
+
+  const handleChange = (field, value) => {
+    setForm(prev => ({ ...prev, [field]: value }));
+    setSaved(false);
+  };
+
+  const handleSave = () => {
+    saveKeys(form);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2500);
+  };
+
+  const FIELDS = [
+    { key: 'anthropicKey', label: 'Anthropic API Key', placeholder: 'sk-ant-...', type: 'password' },
+    { key: 'openaiKey',    label: 'OpenAI API Key',    placeholder: 'sk-...',      type: 'password' },
+    { key: 'apifyToken',   label: 'Apify API Token',   placeholder: 'apify_api_...', type: 'password' },
+    { key: 'city',         label: 'Target city',        placeholder: 'New Delhi',   type: 'text' },
+  ];
+
   return (
     <div style={styles.wrap}>
       <div style={styles.topbar}>
         <div style={styles.topTitle}>Settings</div>
-        <div style={styles.topMeta}>API keys and pipeline preferences</div>
+        <div style={styles.topMeta}>API keys are saved to your browser only — never sent anywhere except the respective APIs</div>
       </div>
-      <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 480 }}>
-        {[
-          { label: 'Anthropic API Key', placeholder: 'sk-ant-...', type: 'password' },
-          { label: 'OpenAI API Key', placeholder: 'sk-...', type: 'password' },
-          { label: 'Apify API Token', placeholder: 'apify_api_...', type: 'password' },
-          { label: 'Target city', placeholder: 'New Delhi', type: 'text' },
-        ].map(f => (
-          <div key={f.label} style={styles.fieldGroup}>
+      <div style={{ padding: 28, display: 'flex', flexDirection: 'column', gap: 20, maxWidth: 480 }}>
+        {FIELDS.map(f => (
+          <div key={f.key} style={styles.fieldGroup}>
             <label style={styles.fieldLabel}>{f.label}</label>
-            <input
-              type={f.type}
-              placeholder={f.placeholder}
-              style={styles.fieldInput}
-              defaultValue={f.label === 'Target city' ? 'New Delhi' : ''}
-            />
+            <div style={styles.inputWrap}>
+              <input
+                type={f.type}
+                placeholder={f.placeholder}
+                value={form[f.key]}
+                onChange={e => handleChange(f.key, e.target.value)}
+                style={styles.fieldInput}
+                autoComplete="off"
+              />
+              {form[f.key] && (
+                <span style={styles.inputCheck}>
+                  <i className="ti ti-check" style={{ fontSize: 12, color: '#639922' }} />
+                </span>
+              )}
+            </div>
           </div>
         ))}
-        <button style={styles.saveBtn}>Save settings</button>
+
+        <button style={styles.saveBtn} onClick={handleSave}>
+          {saved
+            ? <><i className="ti ti-check" style={{ fontSize: 13 }} /> Saved</>
+            : 'Save settings'
+          }
+        </button>
+
+        <div style={styles.note}>
+          <i className="ti ti-lock" style={{ fontSize: 12, marginRight: 6, color: '#8A8680' }} />
+          Keys are stored in localStorage on this device. Clear browser data to remove them.
+        </div>
       </div>
     </div>
   );
@@ -150,6 +188,9 @@ const styles = {
   sentMeta: { fontSize: 11, color: '#8A8680', marginTop: 2 },
   fieldGroup: { display: 'flex', flexDirection: 'column', gap: 6 },
   fieldLabel: { fontSize: 12, color: '#5F5E5A', fontWeight: 500 },
-  fieldInput: { fontFamily: "'DM Sans', sans-serif", fontSize: 13, padding: '9px 12px', border: '0.5px solid #E4E1D9', borderRadius: 8, background: '#fff', color: '#1A1916', outline: 'none' },
-  saveBtn: { fontFamily: "'DM Sans', sans-serif", fontSize: 13, padding: '10px 20px', borderRadius: 8, background: '#C8522A', color: '#fff', border: 'none', cursor: 'pointer', alignSelf: 'flex-start', marginTop: 8 },
+  inputWrap: { position: 'relative' },
+  fieldInput: { fontFamily: "'DM Sans', sans-serif", fontSize: 13, padding: '9px 36px 9px 12px', border: '0.5px solid #E4E1D9', borderRadius: 8, background: '#fff', color: '#1A1916', outline: 'none', width: '100%' },
+  inputCheck: { position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)' },
+  saveBtn: { fontFamily: "'DM Sans', sans-serif", fontSize: 13, padding: '10px 20px', borderRadius: 8, background: '#C8522A', color: '#fff', border: 'none', cursor: 'pointer', alignSelf: 'flex-start', marginTop: 4, display: 'flex', alignItems: 'center', gap: 6, transition: 'background 0.15s' },
+  note: { fontSize: 11, color: '#8A8680', display: 'flex', alignItems: 'center', marginTop: 4 },
 };

@@ -2,11 +2,16 @@ import React, { useState } from 'react';
 import Sidebar from './components/Sidebar';
 import ProspectsView from './components/ProspectsView';
 import { AuditQueueView, DecksView, SentView, SettingsView } from './components/OtherViews';
+import { KeysProvider, useKeys } from './context/KeysContext';
 import { MOCK_RESTAURANTS } from './data/restaurants';
+import { scrapeRestaurants } from './utils/scraper';
 
-export default function App() {
+function MesaApp() {
+  const { keys } = useKeys();
   const [view, setView] = useState('prospects');
   const [restaurants, setRestaurants] = useState(MOCK_RESTAURANTS);
+  const [scraping, setScraping] = useState(false);
+  const [scrapeError, setScrapeError] = useState(null);
 
   const toggleSelect = (id) => {
     setRestaurants(prev =>
@@ -20,6 +25,23 @@ export default function App() {
   const handleRunAudit = (selected) => {
     alert(`Sending ${selected.length} restaurant(s) to audit queue.\n\nComing in Step 3 — Claude API integration.`);
     setView('audit');
+  };
+
+  const handleScrape = async () => {
+    if (!keys.apifyToken) {
+      setScrapeError('Add your Apify token in Settings first.');
+      return;
+    }
+    setScraping(true);
+    setScrapeError(null);
+    try {
+      const results = await scrapeRestaurants(keys.apifyToken, keys.city || 'New Delhi');
+      setRestaurants(results);
+    } catch (err) {
+      setScrapeError(err.message);
+    } finally {
+      setScraping(false);
+    }
   };
 
   const counts = {
@@ -38,6 +60,9 @@ export default function App() {
           onSelectAll={selectAll}
           onDeselectAll={deselectAll}
           onRunAudit={handleRunAudit}
+          onScrape={handleScrape}
+          scraping={scraping}
+          scrapeError={scrapeError}
         />
       );
       case 'audit': return <AuditQueueView restaurants={restaurants} />;
@@ -55,6 +80,14 @@ export default function App() {
         {renderView()}
       </main>
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <KeysProvider>
+      <MesaApp />
+    </KeysProvider>
   );
 }
 
