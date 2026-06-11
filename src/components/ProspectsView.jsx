@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import PipelineTrack from './PipelineTrack';
 import StatusTag from './StatusTag';
 
-export default function ProspectsView({ restaurants, onToggle, onSelectAll, onDeselectAll, onRunAudit, onScrape, scraping, scrapeError }) {
+export default function ProspectsView({ restaurants, onToggle, onSelectAll, onDeselectAll, onRunAudit, onScrape, scraping, scrapeStatus, scrapeError, onGoSettings }) {
   const [sortBy, setSortBy] = useState('photoScore');
   const [sortDir, setSortDir] = useState('asc');
   const [filterStatus, setFilterStatus] = useState('all');
@@ -34,16 +34,23 @@ export default function ProspectsView({ restaurants, onToggle, onSelectAll, onDe
       <div style={styles.topbar}>
         <div>
           <div style={styles.topTitle}>Prospects</div>
-          <div style={styles.topMeta}>New Delhi · {restaurants.length} restaurants scraped</div>
+          <div style={styles.topMeta}>
+            {scraping
+              ? <span style={{ color: '#C8522A' }}>{scrapeStatus || 'Scraping...'}</span>
+              : restaurants.length > 0
+                ? `${restaurants.length} restaurants · last scraped ${getLastScraped(restaurants)}`
+                : 'No data yet — hit Scrape to begin'
+            }
+          </div>
         </div>
         <div style={styles.topActions}>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
             <button style={{ ...styles.btnGhost, opacity: scraping ? 0.6 : 1 }} onClick={onScrape} disabled={scraping}>
-              <i className={`ti ${scraping ? 'ti-loader' : 'ti-refresh'}`} style={{ fontSize: 13 }} />
+              <i className={`ti ${scraping ? 'ti-loader-2' : 'ti-refresh'}`} style={{ fontSize: 13 }} />
               {scraping ? 'Scraping...' : 'Scrape'}
             </button>
             {scrapeError && (
-              <span style={{ fontSize: 11, color: '#E24B4A', maxWidth: 240, textAlign: 'right' }}>{scrapeError}</span>
+              <span style={{ fontSize: 11, color: '#E24B4A', maxWidth: 260, textAlign: 'right', lineHeight: 1.4 }}>{scrapeError}</span>
             )}
           </div>
           <button
@@ -88,8 +95,27 @@ export default function ProspectsView({ restaurants, onToggle, onSelectAll, onDe
         ))}
       </div>
 
+      {/* Empty state */}
+      {restaurants.length === 0 && (
+        <div style={styles.emptyState}>
+          <i className="ti ti-map-pin-off" style={{ fontSize: 32, color: '#D4D0C8', marginBottom: 14 }} aria-hidden="true" />
+          <div style={styles.emptyTitle}>No restaurants yet</div>
+          <div style={styles.emptyDesc}>Hit Scrape to pull restaurants from Google Maps, or add your Apify token in Settings first.</div>
+          <div style={{ display: 'flex', gap: 10, marginTop: 18 }}>
+            <button style={styles.emptyBtnGhost} onClick={onGoSettings}>
+              <i className="ti ti-adjustments-horizontal" style={{ fontSize: 13 }} /> Settings
+            </button>
+            <button style={{ ...styles.btnPrimary, opacity: scraping ? 0.6 : 1 }} onClick={onScrape} disabled={scraping}>
+              <i className={`ti ${scraping ? 'ti-loader' : 'ti-refresh'}`} style={{ fontSize: 13 }} />
+              {scraping ? 'Scraping...' : 'Scrape New Delhi'}
+            </button>
+          </div>
+          {scrapeError && <div style={styles.emptyError}>{scrapeError}</div>}
+        </div>
+      )}
+
       {/* Table */}
-      <div style={styles.tableWrap}>
+      <div style={{ ...styles.tableWrap, display: restaurants.length === 0 ? 'none' : 'block' }}>
         <table style={styles.table}>
           <thead>
             <tr>
@@ -190,6 +216,17 @@ export default function ProspectsView({ restaurants, onToggle, onSelectAll, onDe
   );
 }
 
+function getLastScraped(restaurants) {
+  const dates = restaurants.map(r => r.scrapedAt).filter(Boolean);
+  if (dates.length === 0) return 'unknown';
+  const latest = new Date(Math.max(...dates.map(d => new Date(d))));
+  const mins = Math.round((Date.now() - latest) / 60000);
+  if (mins < 2) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.round(mins / 60);
+  return `${hrs}h ago`;
+}
+
 const styles = {
   wrap: { display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' },
   topbar: { background: '#fff', borderBottom: '0.5px solid #E4E1D9', padding: '16px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 },
@@ -222,6 +259,11 @@ const styles = {
   scoreBarBg: { height: 3, background: '#EDE9E3', borderRadius: 2, marginTop: 4, width: 56 },
   scoreBarFill: { height: '100%', borderRadius: 2, transition: 'width 0.3s' },
   emptyCell: { textAlign: 'center', color: '#8A8680', fontSize: 13, padding: 48 },
+  emptyState: { flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 48, textAlign: 'center' },
+  emptyTitle: { fontSize: 15, fontWeight: 500, color: '#1A1916', marginBottom: 8 },
+  emptyDesc: { fontSize: 13, color: '#8A8680', maxWidth: 340, lineHeight: 1.65 },
+  emptyBtnGhost: { fontFamily: "'DM Sans', sans-serif", fontSize: 12, padding: '8px 14px', borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, background: 'transparent', border: '0.5px solid #E4E1D9', color: '#5F5E5A' },
+  emptyError: { marginTop: 12, fontSize: 11, color: '#E24B4A', maxWidth: 340, lineHeight: 1.5 },
   bottomBar: { background: '#fff', borderTop: '0.5px solid #E4E1D9', padding: '12px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 },
   selCount: { fontFamily: "'DM Mono', monospace", fontSize: 11, color: '#8A8680' },
   btnGhost: { fontFamily: "'DM Sans', sans-serif", fontSize: 12, padding: '7px 14px', borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, background: 'transparent', border: '0.5px solid #E4E1D9', color: '#5F5E5A', transition: 'all 0.15s' },
