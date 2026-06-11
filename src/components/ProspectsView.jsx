@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import PipelineTrack from './PipelineTrack';
 import StatusTag from './StatusTag';
+import { useTheme } from '../context/ThemeContext';
 
-export default function ProspectsView({ restaurants, onToggle, onSelectAll, onDeselectAll, onRunAudit, onScrape, scraping, scrapeStatus, scrapeError, onGoSettings }) {
+export default function ProspectsView({ restaurants, onToggle, onSelectAll, onDeselectAll, onRunAudit, onScrape, scraping, scrapeStatus, scrapeError, onGoSettings, locationLabel }) {
+  const { theme } = useTheme();
   const [sortBy, setSortBy] = useState('photoScore');
   const [sortDir, setSortDir] = useState('asc');
   const [filterStatus, setFilterStatus] = useState('all');
@@ -25,36 +27,35 @@ export default function ProspectsView({ restaurants, onToggle, onSelectAll, onDe
 
   const SortIcon = ({ col }) => {
     if (sortBy !== col) return <i className="ti ti-selector" style={{ fontSize: 11, marginLeft: 3, opacity: 0.3 }} />;
-    return <i className={`ti ti-chevron-${sortDir === 'asc' ? 'up' : 'down'}`} style={{ fontSize: 11, marginLeft: 3, color: '#C8522A' }} />;
+    return <i className={`ti ti-chevron-${sortDir === 'asc' ? 'up' : 'down'}`} style={{ fontSize: 11, marginLeft: 3, color: theme.accent }} />;
   };
 
   return (
-    <div style={styles.wrap}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+
       {/* Topbar */}
-      <div style={styles.topbar}>
+      <div style={{ background: theme.surface, borderBottom: `0.5px solid ${theme.border}`, padding: '16px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
         <div>
-          <div style={styles.topTitle}>Prospects</div>
-          <div style={styles.topMeta}>
+          <div style={{ fontSize: 14, fontWeight: 500, color: theme.ink }}>Prospects</div>
+          <div style={{ fontSize: 12, color: theme.inkMuted, marginTop: 1 }}>
             {scraping
-              ? <span style={{ color: '#C8522A' }}>{scrapeStatus || 'Scraping...'}</span>
+              ? <span style={{ color: theme.accent }}>{scrapeStatus || 'Scraping...'}</span>
               : restaurants.length > 0
-                ? `${restaurants.length} restaurants · last scraped ${getLastScraped(restaurants)}`
-                : 'No data yet — hit Scrape to begin'
+                ? `${locationLabel} · ${restaurants.length} restaurants · last scraped ${getLastScraped(restaurants)}`
+                : `${locationLabel || 'No location set'} · Hit Scrape to begin`
             }
           </div>
         </div>
-        <div style={styles.topActions}>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
-            <button style={{ ...styles.btnGhost, opacity: scraping ? 0.6 : 1 }} onClick={onScrape} disabled={scraping}>
+            <button style={btnGhost(theme, scraping)} onClick={onScrape} disabled={scraping}>
               <i className={`ti ${scraping ? 'ti-loader-2' : 'ti-refresh'}`} style={{ fontSize: 13 }} />
               {scraping ? 'Scraping...' : 'Scrape'}
             </button>
-            {scrapeError && (
-              <span style={{ fontSize: 11, color: '#E24B4A', maxWidth: 260, textAlign: 'right', lineHeight: 1.4 }}>{scrapeError}</span>
-            )}
+            {scrapeError && <span style={{ fontSize: 11, color: '#E24B4A', maxWidth: 260, textAlign: 'right', lineHeight: 1.4 }}>{scrapeError}</span>}
           </div>
           <button
-            style={{ ...styles.btnPrimary, opacity: selected.length === 0 ? 0.45 : 1 }}
+            style={{ ...btnPrimary(theme), opacity: selected.length === 0 ? 0.45 : 1 }}
             disabled={selected.length === 0}
             onClick={() => onRunAudit(selected)}
           >
@@ -65,151 +66,142 @@ export default function ProspectsView({ restaurants, onToggle, onSelectAll, onDe
       </div>
 
       {/* Stats */}
-      <div style={styles.statsRow}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', borderBottom: `0.5px solid ${theme.border}`, background: theme.statBg, flexShrink: 0 }}>
         {[
           { num: restaurants.length, label: 'Total scraped' },
           { num: selected.length, label: 'Selected' },
-          { num: restaurants.filter(r => r.status === 'mocked' || r.status === 'sent').length, label: 'Decks ready' },
+          { num: restaurants.filter(r => r.status === 'mocked' || r.status === 'audited').length, label: 'Audited' },
           { num: restaurants.filter(r => r.status === 'sent' || r.status === 'replied').length, label: 'Emails sent' },
         ].map((s, i) => (
-          <div key={i} style={{ ...styles.statCell, borderRight: i < 3 ? '0.5px solid #E4E1D9' : 'none' }}>
-            <div style={styles.statNum}>{s.num}</div>
-            <div style={styles.statLabel}>{s.label}</div>
+          <div key={i} style={{ padding: '14px 24px', borderRight: i < 3 ? `0.5px solid ${theme.border}` : 'none' }}>
+            <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 22, fontWeight: 500, color: theme.ink }}>{s.num}</div>
+            <div style={{ fontSize: 11, color: theme.inkMuted, marginTop: 2 }}>{s.label}</div>
           </div>
         ))}
       </div>
 
       {/* Filter tabs */}
-      <div style={styles.filterRow}>
-        {['all', 'new', 'audited', 'mocked', 'sent', 'replied'].map(f => (
-          <button
-            key={f}
-            style={{ ...styles.filterTab, ...(filterStatus === f ? styles.filterTabActive : {}) }}
-            onClick={() => setFilterStatus(f)}
-          >
-            {f === 'all' ? 'All' : f.charAt(0).toUpperCase() + f.slice(1)}
-            <span style={styles.filterCount}>
-              {f === 'all' ? restaurants.length : restaurants.filter(r => r.status === f).length}
-            </span>
-          </button>
-        ))}
+      <div style={{ display: 'flex', borderBottom: `0.5px solid ${theme.border}`, background: theme.surface, paddingLeft: 24, flexShrink: 0 }}>
+        {['all', 'new', 'audited', 'mocked', 'sent', 'replied'].map(f => {
+          const active = filterStatus === f;
+          return (
+            <button key={f} style={{
+              fontFamily: "'DM Sans',sans-serif", fontSize: 12, padding: '10px 14px',
+              background: 'transparent', border: 'none',
+              borderBottom: `2px solid ${active ? theme.accent : 'transparent'}`,
+              color: active ? theme.accent : theme.inkMuted,
+              cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, transition: 'all 0.15s',
+            }} onClick={() => setFilterStatus(f)}>
+              {f === 'all' ? 'All' : f.charAt(0).toUpperCase() + f.slice(1)}
+              <span style={{ fontFamily: "'DM Mono',monospace", fontSize: 10, background: theme.filterCountBg, color: theme.filterCountColor, padding: '1px 5px', borderRadius: 10 }}>
+                {f === 'all' ? restaurants.length : restaurants.filter(r => r.status === f).length}
+              </span>
+            </button>
+          );
+        })}
       </div>
 
       {/* Empty state */}
-      {restaurants.length === 0 && (
-        <div style={styles.emptyState}>
-          <i className="ti ti-map-pin-off" style={{ fontSize: 32, color: '#D4D0C8', marginBottom: 14 }} aria-hidden="true" />
-          <div style={styles.emptyTitle}>No restaurants yet</div>
-          <div style={styles.emptyDesc}>Hit Scrape to pull restaurants from Google Maps, or add your Apify token in Settings first.</div>
+      {restaurants.length === 0 && !scraping && (
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 48, textAlign: 'center' }}>
+          <i className="ti ti-map-pin-off" style={{ fontSize: 32, color: theme.emptyIconColor, marginBottom: 14 }} aria-hidden="true" />
+          <div style={{ fontSize: 15, fontWeight: 500, color: theme.ink, marginBottom: 8 }}>No restaurants yet</div>
+          <div style={{ fontSize: 13, color: theme.inkMuted, maxWidth: 340, lineHeight: 1.65 }}>
+            {locationLabel ? `Hit Scrape to pull restaurants from ${locationLabel}.` : 'Set a target location in Settings, then hit Scrape.'}
+          </div>
           <div style={{ display: 'flex', gap: 10, marginTop: 18 }}>
-            <button style={styles.emptyBtnGhost} onClick={onGoSettings}>
+            <button style={btnGhost(theme)} onClick={onGoSettings}>
               <i className="ti ti-adjustments-horizontal" style={{ fontSize: 13 }} /> Settings
             </button>
-            <button style={{ ...styles.btnPrimary, opacity: scraping ? 0.6 : 1 }} onClick={onScrape} disabled={scraping}>
-              <i className={`ti ${scraping ? 'ti-loader' : 'ti-refresh'}`} style={{ fontSize: 13 }} />
-              {scraping ? 'Scraping...' : 'Scrape New Delhi'}
+            <button style={{ ...btnPrimary(theme), opacity: scraping ? 0.6 : 1 }} onClick={onScrape} disabled={scraping}>
+              <i className={`ti ${scraping ? 'ti-loader-2' : 'ti-refresh'}`} style={{ fontSize: 13 }} />
+              {scraping ? 'Scraping...' : `Scrape ${locationLabel || ''}`}
             </button>
           </div>
-          {scrapeError && <div style={styles.emptyError}>{scrapeError}</div>}
+          {scrapeError && <div style={{ marginTop: 12, fontSize: 11, color: '#E24B4A', maxWidth: 340, lineHeight: 1.5 }}>{scrapeError}</div>}
+        </div>
+      )}
+
+      {/* Scraping loading state */}
+      {scraping && restaurants.length === 0 && (
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12 }}>
+          <i className="ti ti-loader-2 ti-spin" style={{ fontSize: 28, color: theme.accent }} aria-hidden="true" />
+          <div style={{ fontSize: 14, color: theme.ink, fontWeight: 500 }}>Scraping Google Maps...</div>
+          <div style={{ fontSize: 12, color: theme.inkMuted }}>{scrapeStatus}</div>
         </div>
       )}
 
       {/* Table */}
-      <div style={{ ...styles.tableWrap, display: restaurants.length === 0 ? 'none' : 'block' }}>
-        <table style={styles.table}>
-          <thead>
-            <tr>
-              <th style={{ ...styles.th, width: 40 }}>
-                <div
-                  style={{ ...styles.checkBox, ...(selected.length === filtered.length && filtered.length > 0 ? styles.checkBoxChecked : {}) }}
-                  onClick={() => selected.length === filtered.length ? onDeselectAll() : onSelectAll()}
-                />
-              </th>
-              <th style={{ ...styles.th, cursor: 'pointer' }} onClick={() => handleSort('name')}>
-                Restaurant <SortIcon col="name" />
-              </th>
-              <th style={{ ...styles.th, cursor: 'pointer' }} onClick={() => handleSort('rating')}>
-                Rating <SortIcon col="rating" />
-              </th>
-              <th style={{ ...styles.th, cursor: 'pointer' }} onClick={() => handleSort('photoScore')}>
-                Photo score <SortIcon col="photoScore" />
-              </th>
-              <th style={styles.th}>Pipeline</th>
-              <th style={styles.th}>Status</th>
-              <th style={{ ...styles.th, width: 40 }}></th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.length === 0 && (
+      {restaurants.length > 0 && (
+        <div style={{ flex: 1, overflowY: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
               <tr>
-                <td colSpan={7} style={styles.emptyCell}>No restaurants in this filter.</td>
+                <th style={{ ...th(theme), width: 40 }}>
+                  <div
+                    style={{ width: 16, height: 16, border: `1.5px solid ${selected.length === filtered.length && filtered.length > 0 ? theme.accent : '#D4D0C8'}`, borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', background: selected.length === filtered.length && filtered.length > 0 ? theme.accent : 'transparent' }}
+                    onClick={() => selected.length === filtered.length ? onDeselectAll() : onSelectAll()}
+                  >
+                    {selected.length === filtered.length && filtered.length > 0 && <i className="ti ti-check" style={{ fontSize: 10, color: '#fff' }} />}
+                  </div>
+                </th>
+                <th style={{ ...th(theme), cursor: 'pointer' }} onClick={() => handleSort('name')}>Restaurant <SortIcon col="name" /></th>
+                <th style={{ ...th(theme), cursor: 'pointer' }} onClick={() => handleSort('rating')}>Rating <SortIcon col="rating" /></th>
+                <th style={{ ...th(theme), cursor: 'pointer' }} onClick={() => handleSort('photoScore')}>Photo score <SortIcon col="photoScore" /></th>
+                <th style={th(theme)}>Pipeline</th>
+                <th style={th(theme)}>Status</th>
+                <th style={{ ...th(theme), width: 40 }}></th>
               </tr>
-            )}
-            {filtered.map(r => (
-              <tr
-                key={r.id}
-                style={{ ...styles.row, ...(r.selected ? styles.rowSelected : {}) }}
-                onClick={() => onToggle(r.id)}
-              >
-                <td style={styles.td}>
-                  <div style={{ ...styles.checkBox, ...(r.selected ? styles.checkBoxChecked : {}) }}>
-                    {r.selected && <i className="ti ti-check" style={{ fontSize: 10, color: '#fff' }} />}
-                  </div>
-                </td>
-                <td style={styles.td}>
-                  <div style={styles.restName}>{r.name}</div>
-                  <div style={styles.restMeta}>{r.cuisine} · {r.area}</div>
-                </td>
-                <td style={styles.td}>
-                  <div style={styles.ratingWrap}>
-                    <div style={{
-                      ...styles.ratingDot,
-                      background: r.rating >= 4.2 ? '#639922' : r.rating >= 3.8 ? '#EF9F27' : '#E24B4A'
-                    }} />
-                    <span style={styles.ratingNum}>{r.rating}</span>
-                  </div>
-                </td>
-                <td style={styles.td}>
-                  <div style={styles.scoreNum}>{r.photoScore}<span style={styles.scoreMax}>/100</span></div>
-                  <div style={styles.scoreBarBg}>
-                    <div style={{
-                      ...styles.scoreBarFill,
-                      width: `${r.photoScore}%`,
-                      background: r.photoScore < 30 ? '#E24B4A' : r.photoScore < 50 ? '#EF9F27' : '#639922',
-                    }} />
-                  </div>
-                </td>
-                <td style={styles.td}>
-                  <PipelineTrack status={r.status} />
-                </td>
-                <td style={styles.td}>
-                  <StatusTag status={r.status} />
-                </td>
-                <td style={styles.td} onClick={e => e.stopPropagation()}>
-                  <button style={styles.rowAction} title="View details">
-                    <i className="ti ti-chevron-right" style={{ fontSize: 14, color: '#8A8680' }} />
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {filtered.length === 0 && (
+                <tr><td colSpan={7} style={{ textAlign: 'center', color: theme.inkMuted, fontSize: 13, padding: 48 }}>No restaurants in this filter.</td></tr>
+              )}
+              {filtered.map(r => (
+                <tr key={r.id} style={{ borderBottom: `0.5px solid ${theme.borderLight}`, cursor: 'pointer', background: r.selected ? theme.tableRowSelected : theme.tableRow }} onClick={() => onToggle(r.id)}>
+                  <td style={td(theme)}>
+                    <div style={{ width: 16, height: 16, border: `1.5px solid ${r.selected ? theme.accent : '#D4D0C8'}`, borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', background: r.selected ? theme.accent : 'transparent', flexShrink: 0 }}>
+                      {r.selected && <i className="ti ti-check" style={{ fontSize: 10, color: '#fff' }} />}
+                    </div>
+                  </td>
+                  <td style={td(theme)}>
+                    <div style={{ fontWeight: 500, fontSize: 13, color: theme.ink }}>{r.name}</div>
+                    <div style={{ fontSize: 11, color: theme.inkMuted, marginTop: 2 }}>{r.cuisine} · {r.area}</div>
+                  </td>
+                  <td style={td(theme)}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                      <div style={{ width: 6, height: 6, borderRadius: '50%', background: r.rating >= 4.2 ? '#639922' : r.rating >= 3.8 ? '#EF9F27' : '#E24B4A', flexShrink: 0 }} />
+                      <span style={{ fontFamily: "'DM Mono',monospace", fontSize: 12, color: theme.ink }}>{r.rating}</span>
+                    </div>
+                  </td>
+                  <td style={td(theme)}>
+                    <div style={{ fontFamily: "'DM Mono',monospace", fontSize: 12, color: theme.ink }}>{r.photoScore}<span style={{ color: theme.inkFaint, fontSize: 10 }}>/100</span></div>
+                    <div style={{ height: 3, background: theme.scoreBarBg, borderRadius: 2, marginTop: 4, width: 56 }}>
+                      <div style={{ height: '100%', borderRadius: 2, width: `${r.photoScore}%`, background: r.photoScore < 30 ? '#E24B4A' : r.photoScore < 50 ? '#EF9F27' : '#639922' }} />
+                    </div>
+                  </td>
+                  <td style={td(theme)}><PipelineTrack status={r.status} /></td>
+                  <td style={td(theme)}><StatusTag status={r.status} /></td>
+                  <td style={td(theme)} onClick={e => e.stopPropagation()}>
+                    <button style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: 4, borderRadius: 4, display: 'flex', alignItems: 'center' }}>
+                      <i className="ti ti-chevron-right" style={{ fontSize: 14, color: theme.inkMuted }} />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {/* Bottom bar */}
-      <div style={styles.bottomBar}>
-        <span style={styles.selCount}>
-          <span style={{ color: '#C8522A', fontWeight: 500 }}>{selected.length}</span> of {restaurants.length} selected
+      <div style={{ background: theme.surface, borderTop: `0.5px solid ${theme.border}`, padding: '12px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+        <span style={{ fontFamily: "'DM Mono',monospace", fontSize: 11, color: theme.inkMuted }}>
+          <span style={{ color: theme.accent, fontWeight: 500 }}>{selected.length}</span> of {restaurants.length} selected
         </span>
         <div style={{ display: 'flex', gap: 8 }}>
-          <button
-            style={{ ...styles.btnGhost, opacity: selected.length === 0 ? 0.4 : 1 }}
-            disabled={selected.length === 0}
-            onClick={onDeselectAll}
-          >
-            Deselect all
-          </button>
-          <button style={styles.btnGhost} onClick={onSelectAll}>Select all</button>
+          <button style={{ ...btnGhost(theme), opacity: selected.length === 0 ? 0.4 : 1 }} disabled={selected.length === 0} onClick={onDeselectAll}>Deselect all</button>
+          <button style={btnGhost(theme)} onClick={onSelectAll}>Select all</button>
         </div>
       </div>
     </div>
@@ -223,50 +215,18 @@ function getLastScraped(restaurants) {
   const mins = Math.round((Date.now() - latest) / 60000);
   if (mins < 2) return 'just now';
   if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.round(mins / 60);
-  return `${hrs}h ago`;
+  return `${Math.round(mins / 60)}h ago`;
 }
 
-const styles = {
-  wrap: { display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' },
-  topbar: { background: '#fff', borderBottom: '0.5px solid #E4E1D9', padding: '16px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 },
-  topTitle: { fontSize: 14, fontWeight: 500, color: '#1A1916' },
-  topMeta: { fontSize: 12, color: '#8A8680', marginTop: 1 },
-  topActions: { display: 'flex', gap: 8, alignItems: 'center' },
-  statsRow: { display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', borderBottom: '0.5px solid #E4E1D9', background: '#fff', flexShrink: 0 },
-  statCell: { padding: '14px 24px' },
-  statNum: { fontFamily: "'DM Mono', monospace", fontSize: 22, fontWeight: 500, color: '#1A1916' },
-  statLabel: { fontSize: 11, color: '#8A8680', marginTop: 2 },
-  filterRow: { display: 'flex', gap: 0, borderBottom: '0.5px solid #E4E1D9', background: '#fff', paddingLeft: 24, flexShrink: 0 },
-  filterTab: { fontFamily: "'DM Sans', sans-serif", fontSize: 12, padding: '10px 14px', background: 'transparent', border: 'none', borderBottom: '2px solid transparent', color: '#8A8680', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, transition: 'all 0.15s' },
-  filterTabActive: { color: '#C8522A', borderBottom: '2px solid #C8522A' },
-  filterCount: { fontFamily: "'DM Mono', monospace", fontSize: 10, background: '#F0EDE8', color: '#8A8680', padding: '1px 5px', borderRadius: 10 },
-  tableWrap: { flex: 1, overflowY: 'auto' },
-  table: { width: '100%', borderCollapse: 'collapse' },
-  th: { fontFamily: "'DM Mono', monospace", fontSize: 9, letterSpacing: '1.2px', textTransform: 'uppercase', color: '#8A8680', padding: '10px 14px', textAlign: 'left', background: '#F7F6F3', borderBottom: '0.5px solid #E4E1D9', fontWeight: 400, position: 'sticky', top: 0, zIndex: 1, userSelect: 'none' },
-  row: { borderBottom: '0.5px solid #F0EDE8', cursor: 'pointer', transition: 'background 0.1s' },
-  rowSelected: { background: '#FDF3EF' },
-  td: { padding: '13px 14px', fontSize: 13, color: '#1A1916', verticalAlign: 'middle' },
-  checkBox: { width: 16, height: 16, border: '1.5px solid #D4D0C8', borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s', flexShrink: 0 },
-  checkBoxChecked: { background: '#C8522A', border: '1.5px solid #C8522A' },
-  restName: { fontWeight: 500, fontSize: 13, color: '#1A1916' },
-  restMeta: { fontSize: 11, color: '#8A8680', marginTop: 2 },
-  ratingWrap: { display: 'flex', alignItems: 'center', gap: 5 },
-  ratingDot: { width: 6, height: 6, borderRadius: '50%', flexShrink: 0 },
-  ratingNum: { fontFamily: "'DM Mono', monospace", fontSize: 12, color: '#1A1916' },
-  scoreNum: { fontFamily: "'DM Mono', monospace", fontSize: 12, color: '#1A1916' },
-  scoreMax: { color: '#B4B0A8', fontSize: 10 },
-  scoreBarBg: { height: 3, background: '#EDE9E3', borderRadius: 2, marginTop: 4, width: 56 },
-  scoreBarFill: { height: '100%', borderRadius: 2, transition: 'width 0.3s' },
-  emptyCell: { textAlign: 'center', color: '#8A8680', fontSize: 13, padding: 48 },
-  emptyState: { flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 48, textAlign: 'center' },
-  emptyTitle: { fontSize: 15, fontWeight: 500, color: '#1A1916', marginBottom: 8 },
-  emptyDesc: { fontSize: 13, color: '#8A8680', maxWidth: 340, lineHeight: 1.65 },
-  emptyBtnGhost: { fontFamily: "'DM Sans', sans-serif", fontSize: 12, padding: '8px 14px', borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, background: 'transparent', border: '0.5px solid #E4E1D9', color: '#5F5E5A' },
-  emptyError: { marginTop: 12, fontSize: 11, color: '#E24B4A', maxWidth: 340, lineHeight: 1.5 },
-  bottomBar: { background: '#fff', borderTop: '0.5px solid #E4E1D9', padding: '12px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 },
-  selCount: { fontFamily: "'DM Mono', monospace", fontSize: 11, color: '#8A8680' },
-  btnGhost: { fontFamily: "'DM Sans', sans-serif", fontSize: 12, padding: '7px 14px', borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, background: 'transparent', border: '0.5px solid #E4E1D9', color: '#5F5E5A', transition: 'all 0.15s' },
-  btnPrimary: { fontFamily: "'DM Sans', sans-serif", fontSize: 12, padding: '7px 14px', borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, background: '#C8522A', color: '#fff', border: 'none', transition: 'all 0.15s' },
-  rowAction: { background: 'transparent', border: 'none', cursor: 'pointer', padding: 4, borderRadius: 4, display: 'flex', alignItems: 'center' },
-};
+function th(theme) {
+  return { fontFamily: "'DM Mono',monospace", fontSize: 9, letterSpacing: '1.2px', textTransform: 'uppercase', color: theme.inkMuted, padding: '10px 14px', textAlign: 'left', background: theme.tableHead, borderBottom: `0.5px solid ${theme.border}`, fontWeight: 400, position: 'sticky', top: 0, zIndex: 1, userSelect: 'none' };
+}
+function td(theme) {
+  return { padding: '13px 14px', fontSize: 13, color: theme.ink, verticalAlign: 'middle' };
+}
+function btnGhost(theme, disabled) {
+  return { fontFamily: "'DM Sans',sans-serif", fontSize: 12, padding: '7px 14px', borderRadius: 8, cursor: disabled ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: 6, background: theme.btnGhostBg, border: `0.5px solid ${theme.border}`, color: theme.btnGhostColor, transition: 'all 0.15s', opacity: disabled ? 0.6 : 1 };
+}
+function btnPrimary(theme) {
+  return { fontFamily: "'DM Sans',sans-serif", fontSize: 12, padding: '7px 14px', borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, background: theme.accent, color: '#fff', border: 'none', transition: 'all 0.15s' };
+}

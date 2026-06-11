@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTheme } from '../context/ThemeContext';
 
 const STEPS = [
   {
@@ -35,6 +36,7 @@ const STEPS = [
 
 export default function Onboarding({ onDone, onGoSettings }) {
   const [step, setStep] = useState(0);
+  const { theme } = useTheme();
   const current = STEPS[step];
   const isLast = step === STEPS.length - 1;
   const progress = ((step + 1) / STEPS.length) * 100;
@@ -114,7 +116,7 @@ const styles = {
   overlay: {
     position: 'fixed',
     inset: 0,
-    background: 'rgba(26, 25, 22, 0.55)',
+    background: 'rgba(0,0,0,0.6)',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -122,7 +124,7 @@ const styles = {
     backdropFilter: 'blur(2px)',
   },
   card: {
-    background: '#FFFFFF',
+    background: 'var(--mesa-surface, #FFFFFF)',
     borderRadius: 16,
     padding: '32px 32px 24px',
     width: 420,

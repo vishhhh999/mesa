@@ -196,9 +196,10 @@ export const MOCK_RESTAURANTS = [
 export const PIPELINE_STAGES = ["scraped", "audited", "generated", "assembled", "sent"];
 
 export const STATUS_META = {
-  new:     { label: "New",        color: "#5F5E5A", bg: "#EDE9E3", segs: 0 },
-  audited: { label: "Audited",    color: "#B07D00", bg: "#FEF3CD", segs: 2 },
-  mocked:  { label: "Mock ready", color: "#3B6D11", bg: "#E8F4E8", segs: 4 },
-  sent:    { label: "Sent",       color: "#185FA5", bg: "#E8EEF8", segs: 5 },
-  replied: { label: "Replied",    color: "#C8522A", bg: "#F5D8CC", segs: 5 },
+  new:      { label: "New",        color: "#5F5E5A", bg: "#EDE9E3", segs: 0 },
+  auditing: { label: "Auditing…",  color: "#B07D00", bg: "#FEF3CD", segs: 1 },
+  audited:  { label: "Audited",    color: "#B07D00", bg: "#FEF3CD", segs: 2 },
+  mocked:   { label: "Mock ready", color: "#3B6D11", bg: "#E8F4E8", segs: 4 },
+  sent:     { label: "Sent",       color: "#185FA5", bg: "#E8EEF8", segs: 5 },
+  replied:  { label: "Replied",    color: "#C8522A", bg: "#F5D8CC", segs: 5 },
 };
