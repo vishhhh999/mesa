@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useKeys } from '../context/KeysContext';
 import { useTheme } from '../context/ThemeContext';
 import { COUNTRIES, getStates, getCities, getCountryCode } from '../data/locations';
+import DeckModal from './DeckModal';
 
 function EmptyView({ icon, title, description, cta, onCta }) {
   const { theme } = useTheme();
@@ -84,8 +85,9 @@ function AuditSection({ label, text, theme, accent }) {
   );
 }
 
-export function DecksView({ restaurants }) {
+export function DecksView({ restaurants, onUpdateRestaurant }) {
   const { theme } = useTheme();
+  const [activeDeck, setActiveDeck] = useState(null);
   const deckReady = restaurants.filter(r => ['audited', 'mocked', 'sent', 'replied'].includes(r.status));
 
   if (deckReady.length === 0) {
@@ -96,22 +98,45 @@ export function DecksView({ restaurants }) {
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <div style={topbarStyle(theme)}>
         <div style={{ fontSize: 14, fontWeight: 500, color: theme.ink }}>Decks</div>
-        <div style={{ fontSize: 12, color: theme.inkMuted, marginTop: 1 }}>{deckReady.length} decks ready</div>
+        <div style={{ fontSize: 12, color: theme.inkMuted, marginTop: 1 }}>{deckReady.length} {deckReady.length === 1 ? 'deck' : 'decks'} ready</div>
       </div>
-      <div style={{ flex: 1, overflowY: 'auto', padding: 24, display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: 24, display: 'flex', flexDirection: 'column', gap: 10 }}>
         {deckReady.map(r => (
-          <div key={r.id} style={{ background: theme.surface, border: `0.5px solid ${theme.border}`, borderRadius: 10, padding: 18, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div>
-              <div style={{ fontSize: 14, fontWeight: 500, color: theme.ink }}>{r.name}</div>
+          <div key={r.id} style={{ background: theme.surface, border: `0.5px solid ${theme.border}`, borderRadius: 10, padding: '16px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{ fontSize: 14, fontWeight: 500, color: theme.ink }}>{r.name}</div>
+                {r.deckImages?.length > 0 && (
+                  <span style={{ fontFamily: "'DM Mono',monospace", fontSize: 9, padding: '2px 7px', borderRadius: 10, background: '#E8F4E8', color: '#3B6D11' }}>
+                    Images ready
+                  </span>
+                )}
+              </div>
               <div style={{ fontSize: 11, color: theme.inkMuted, marginTop: 2 }}>{r.cuisine} · {r.area}</div>
-              {r.audit?.pitchAngle && <div style={{ fontSize: 12, color: theme.inkMuted, marginTop: 6, maxWidth: 420, lineHeight: 1.5, fontStyle: 'italic' }}>"{r.audit.pitchAngle}"</div>}
+              {r.audit?.pitchAngle && (
+                <div style={{ fontSize: 12, color: theme.inkMuted, marginTop: 6, fontStyle: 'italic', maxWidth: 480, lineHeight: 1.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  "{r.audit.pitchAngle}"
+                </div>
+              )}
             </div>
-            <button style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 12, padding: '7px 14px', borderRadius: 8, background: theme.accent, color: '#fff', border: 'none', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+            <button
+              onClick={() => setActiveDeck(r)}
+              style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 12, padding: '8px 16px', borderRadius: 8, background: theme.accent, color: '#fff', border: 'none', cursor: 'pointer', whiteSpace: 'nowrap', marginLeft: 16, display: 'flex', alignItems: 'center', gap: 6 }}
+            >
+              <i className="ti ti-presentation" style={{ fontSize: 13 }} />
               View deck
             </button>
           </div>
         ))}
       </div>
+
+      {activeDeck && (
+        <DeckModal
+          restaurant={restaurants.find(r => r.id === activeDeck.id) || activeDeck}
+          onClose={() => setActiveDeck(null)}
+          onUpdateRestaurant={onUpdateRestaurant}
+        />
+      )}
     </div>
   );
 }

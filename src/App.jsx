@@ -53,6 +53,7 @@ function MesaApp() {
   const toggleSelect = (id) => setRestaurants(prev => prev.map(r => r.id === id ? { ...r, selected: !r.selected } : r));
   const selectAll = () => setRestaurants(prev => prev.map(r => ({ ...r, selected: true })));
   const deselectAll = () => setRestaurants(prev => prev.map(r => ({ ...r, selected: false })));
+  const updateRestaurant = (id, updates) => setRestaurants(prev => prev.map(r => r.id === id ? { ...r, ...updates } : r));
 
   const handleScrape = async () => {
     if (!keys.apifyToken) { setScrapeError('Add your Apify token in Settings first.'); return; }
@@ -132,7 +133,7 @@ function MesaApp() {
         />
       );
       case 'audit': return <AuditQueueView restaurants={restaurants} auditing={auditing} auditStatus={auditStatus} />;
-      case 'decks': return <DecksView restaurants={restaurants} />;
+      case 'decks': return <DecksView restaurants={restaurants} onUpdateRestaurant={updateRestaurant} />;
       case 'sent': return <SentView restaurants={restaurants} />;
       case 'settings': return <SettingsView />;
       default: return null;
