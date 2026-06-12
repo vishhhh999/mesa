@@ -2,12 +2,14 @@ import React, { useState } from 'react';
 import PipelineTrack from './PipelineTrack';
 import StatusTag from './StatusTag';
 import { useTheme } from '../context/ThemeContext';
+import RestaurantDrawer from './RestaurantDrawer';
 
 export default function ProspectsView({ restaurants, onToggle, onSelectAll, onDeselectAll, onRunAudit, onScrape, scraping, scrapeStatus, scrapeError, onGoSettings, locationLabel }) {
   const { theme } = useTheme();
   const [sortBy, setSortBy] = useState('photoScore');
   const [sortDir, setSortDir] = useState('asc');
   const [filterStatus, setFilterStatus] = useState('all');
+  const [drawerRestaurant, setDrawerRestaurant] = useState(null);
 
   const selected = restaurants.filter(r => r.selected);
 
@@ -182,7 +184,7 @@ export default function ProspectsView({ restaurants, onToggle, onSelectAll, onDe
                   </td>
                   <td style={td(theme)}><PipelineTrack status={r.status} /></td>
                   <td style={td(theme)}><StatusTag status={r.status} /></td>
-                  <td style={td(theme)} onClick={e => e.stopPropagation()}>
+                  <td style={td(theme)} onClick={e => { e.stopPropagation(); setDrawerRestaurant(r); }}>
                     <button style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: 4, borderRadius: 4, display: 'flex', alignItems: 'center' }}>
                       <i className="ti ti-chevron-right" style={{ fontSize: 14, color: theme.inkMuted }} />
                     </button>
@@ -204,6 +206,14 @@ export default function ProspectsView({ restaurants, onToggle, onSelectAll, onDe
           <button style={btnGhost(theme)} onClick={onSelectAll}>Select all</button>
         </div>
       </div>
+
+      {/* Restaurant detail drawer */}
+      {drawerRestaurant && (
+        <RestaurantDrawer
+          restaurant={restaurants.find(r => r.id === drawerRestaurant.id) || drawerRestaurant}
+          onClose={() => setDrawerRestaurant(null)}
+        />
+      )}
     </div>
   );
 }

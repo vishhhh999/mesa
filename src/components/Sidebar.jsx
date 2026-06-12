@@ -87,7 +87,7 @@ export default function Sidebar({ activeView, onNav, counts }) {
           </button>
         </div>
         <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, color: theme.inkFaint }}>
-          v0.4 · alpha
+        v0.5 · beta
         </div>
       </div>
     </aside>

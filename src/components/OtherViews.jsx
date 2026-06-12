@@ -17,12 +17,12 @@ function EmptyView({ icon, title, description, cta, onCta }) {
   );
 }
 
-export function AuditQueueView({ restaurants, onUpdateRestaurant }) {
+export function AuditQueueView({ restaurants, auditing, auditStatus }) {
   const { theme } = useTheme();
-  const queued = restaurants.filter(r => r.status === 'auditing' || (r.selected && r.status === 'new'));
+  const inProgress = restaurants.filter(r => r.status === 'auditing');
   const audited = restaurants.filter(r => r.audit);
 
-  if (queued.length === 0 && audited.length === 0) {
+  if (inProgress.length === 0 && audited.length === 0) {
     return <EmptyView icon="ti-wand" title="Audit queue is empty" description="Select restaurants from Prospects and click Run Audit to begin." />;
   }
 
@@ -30,26 +30,44 @@ export function AuditQueueView({ restaurants, onUpdateRestaurant }) {
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <div style={topbarStyle(theme)}>
         <div style={{ fontSize: 14, fontWeight: 500, color: theme.ink }}>Audit Queue</div>
-        <div style={{ fontSize: 12, color: theme.inkMuted, marginTop: 1 }}>{audited.length} audited · {queued.length} pending</div>
+        <div style={{ fontSize: 12, color: theme.inkMuted, marginTop: 1 }}>
+          {auditing
+            ? <span style={{ color: theme.accent }}>{auditStatus}</span>
+            : `${audited.length} audited · ${inProgress.length} pending`
+          }
+        </div>
       </div>
       <div style={{ flex: 1, overflowY: 'auto', padding: 24, display: 'flex', flexDirection: 'column', gap: 12 }}>
-        {restaurants.filter(r => r.audit || r.status === 'auditing').map(r => (
+        {/* In-progress first */}
+        {inProgress.map(r => (
           <div key={r.id} style={{ background: theme.surface, border: `0.5px solid ${theme.border}`, borderRadius: 10, padding: 18 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: r.audit ? 14 : 0 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
                 <div style={{ fontSize: 14, fontWeight: 500, color: theme.ink }}>{r.name}</div>
                 <div style={{ fontSize: 11, color: theme.inkMuted, marginTop: 2 }}>{r.cuisine} · {r.area}</div>
               </div>
-              {r.status === 'auditing' && <span style={tagStyle('#EF9F27', '#FEF3CD')}>Auditing...</span>}
-              {r.audit && <span style={tagStyle('#3B6D11', '#E8F4E8')}>Audited</span>}
-            </div>
-            {r.audit && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                <AuditSection label="Brand assessment" text={r.audit.brandAssessment} theme={theme} />
-                <AuditSection label="Rebrand direction" text={r.audit.rebrandDirection} theme={theme} />
-                <AuditSection label="Pitch angle" text={r.audit.pitchAngle} theme={theme} accent />
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <i className="ti ti-loader-2" style={{ fontSize: 14, color: theme.accent }} aria-hidden="true" />
+                <span style={tagStyle('#B07D00', '#FEF3CD')}>Auditing...</span>
               </div>
-            )}
+            </div>
+          </div>
+        ))}
+        {/* Completed */}
+        {audited.map(r => (
+          <div key={r.id} style={{ background: theme.surface, border: `0.5px solid ${theme.border}`, borderRadius: 10, padding: 18 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 }}>
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 500, color: theme.ink }}>{r.name}</div>
+                <div style={{ fontSize: 11, color: theme.inkMuted, marginTop: 2 }}>{r.cuisine} · {r.area}</div>
+              </div>
+              <span style={tagStyle('#3B6D11', '#E8F4E8')}>Audited</span>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <AuditSection label="Brand assessment" text={r.audit.brandAssessment} theme={theme} />
+              <AuditSection label="Rebrand direction" text={r.audit.rebrandDirection} theme={theme} />
+              <AuditSection label="Pitch angle" text={r.audit.pitchAngle} theme={theme} accent />
+            </div>
           </div>
         ))}
       </div>
@@ -66,12 +84,12 @@ function AuditSection({ label, text, theme, accent }) {
   );
 }
 
-export function DecksView({ restaurants, onUpdateRestaurant }) {
+export function DecksView({ restaurants }) {
   const { theme } = useTheme();
-  const deckReady = restaurants.filter(r => r.status === 'mocked' || r.status === 'sent' || r.status === 'replied');
+  const deckReady = restaurants.filter(r => ['audited', 'mocked', 'sent', 'replied'].includes(r.status));
 
   if (deckReady.length === 0) {
-    return <EmptyView icon="ti-file-description" title="No decks generated yet" description="Run Audit on prospects first. Once audited, MESA will generate a PDF pitch deck with mock menu designs and brand direction." />;
+    return <EmptyView icon="ti-file-description" title="No decks generated yet" description="Run Audit on prospects first. Once audited, MESA generates a PDF pitch deck with mock menu designs and brand direction." />;
   }
 
   return (
@@ -151,6 +169,11 @@ export function SettingsView() {
     setSaved(false);
   };
 
+  const handleThemeChange = (mode) => {
+    handleChange('theme', mode);
+    saveKeys({ ...form, theme: mode });
+  };
+
   const handleSave = () => {
     saveKeys(form);
     setSaved(true);
@@ -197,7 +220,7 @@ export function SettingsView() {
               {['light', 'dark'].map(mode => (
                 <button
                   key={mode}
-                  onClick={() => handleChange('theme', mode)}
+                  onClick={() => handleThemeChange(mode)}
                   style={{
                     flex: 1, padding: '10px 0', borderRadius: 8, cursor: 'pointer',
                     border: `1.5px solid ${form.theme === mode ? theme.accent : theme.border}`,

@@ -11,11 +11,11 @@ Restaurant details:
 - Photo quality score: ${restaurant.photoScore}/100 (lower = weaker visuals)
 - Website: ${restaurant.website || 'None found'}
 
-Return ONLY a JSON object with these exact keys, no preamble or markdown:
+Return ONLY a valid JSON object with exactly these keys, no preamble, no markdown fences:
 {
-  "brandAssessment": "2-3 sentences on what their current brand likely looks and feels like based on the data. Be specific about what signals weak or generic branding — consider their cuisine type, location, price point implied by rating and area, and photo quality score.",
-  "rebrandDirection": "2-3 sentences on a specific visual language recommendation. Name the typography mood (e.g. geometric sans, editorial serif), a 2-color palette with hex codes, and a menu layout style. Make it specific to THIS restaurant, not generic.",
-  "pitchAngle": "One sharp, punchy sentence (max 20 words) that captures exactly why this restaurant needs a rebrand. This goes in the outreach email subject line — make it feel personal and insightful, not salesy."
+  "brandAssessment": "2-3 sentences on what their current brand likely looks and feels like. Be specific — consider cuisine type, location signals, price point implied by rating and area, and photo quality.",
+  "rebrandDirection": "2-3 sentences with a specific visual language recommendation. Name typography mood, provide a 2-color palette with hex codes, and describe a menu layout style. Make it specific to THIS restaurant.",
+  "pitchAngle": "One sharp sentence under 20 words capturing why this restaurant needs a rebrand. Personal and insightful, not salesy."
 }`;
 
   const response = await fetch('https://api.anthropic.com/v1/messages', {
@@ -27,25 +27,32 @@ Return ONLY a JSON object with these exact keys, no preamble or markdown:
       'anthropic-dangerous-direct-browser-calls': 'true',
     },
     body: JSON.stringify({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 600,
+      model: 'claude-sonnet-4-6',
+      max_tokens: 700,
       messages: [{ role: 'user', content: prompt }],
     }),
   });
 
   if (!response.ok) {
     const err = await response.json().catch(() => ({}));
-    throw new Error(err.error?.message || `Claude API error ${response.status}`);
+    const msg = err.error?.message || `Claude API error ${response.status}`;
+    throw new Error(msg);
   }
 
   const data = await response.json();
   const text = data.content?.[0]?.text || '';
 
   try {
-    const clean = text.replace(/```json|```/g, '').trim();
+    // Strip any accidental markdown fences
+    const clean = text.replace(/^```(?:json)?|```$/gm, '').trim();
     return JSON.parse(clean);
   } catch {
-    throw new Error('Claude returned unexpected format. Try again.');
+    // Last resort: try to extract JSON from the text
+    const match = text.match(/\{[\s\S]*\}/);
+    if (match) {
+      try { return JSON.parse(match[0]); } catch {}
+    }
+    throw new Error(`Could not parse audit for ${restaurant.name}. Response: ${text.slice(0, 100)}`);
   }
 }
 
@@ -56,12 +63,12 @@ export async function auditBatch(restaurants, anthropicKey, onProgress) {
     onProgress?.(i, restaurants.length, r.name);
     try {
       const audit = await auditRestaurant(r, anthropicKey);
-      results.push({ id: r.id, audit, status: 'audited' });
+      results.push({ id: r.id, audit, status: 'audited', error: null });
     } catch (err) {
+      console.error(`Audit failed for ${r.name}:`, err);
       results.push({ id: r.id, audit: null, status: 'new', error: err.message });
     }
-    // Small delay to avoid rate limiting
-    if (i < restaurants.length - 1) await sleep(800);
+    if (i < restaurants.length - 1) await sleep(1000);
   }
   return results;
 }

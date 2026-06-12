@@ -68,25 +68,35 @@ function MesaApp() {
     } finally { setScraping(false); }
   };
 
-  const handleRunAudit = async (selected) => {
+  const handleRunAudit = async (selectedRestaurants) => {
     if (!keys.anthropicKey) { alert('Add your Anthropic API key in Settings first.'); return; }
+    // Capture IDs and full data before any state mutation
+    const toAudit = selectedRestaurants.map(r => ({ ...r }));
     setAuditing(true);
+    setAuditStatus(`Starting audit for ${toAudit.length} restaurant${toAudit.length > 1 ? 's' : ''}...`);
     setView('audit');
-    // Mark as auditing
+    // Mark selected as auditing
     setRestaurants(prev => prev.map(r =>
-      selected.find(s => s.id === r.id) ? { ...r, status: 'auditing' } : r
+      toAudit.find(s => s.id === r.id) ? { ...r, status: 'auditing' } : r
     ));
     try {
-      const results = await auditBatch(selected, keys.anthropicKey, (i, total, name) => {
-        setAuditStatus(`Auditing ${name}... (${i + 1}/${total})`);
+      const results = await auditBatch(toAudit, keys.anthropicKey, (i, total, name) => {
+        setAuditStatus(`Auditing ${name}... (${i + 1} of ${total})`);
       });
       setRestaurants(prev => prev.map(r => {
         const result = results.find(res => res.id === r.id);
         if (!result) return r;
-        return { ...r, audit: result.audit, status: result.status };
+        return { ...r, audit: result.audit, status: result.status, selected: false };
       }));
+      const failed = results.filter(r => r.error);
+      if (failed.length > 0) {
+        alert(`${results.length - failed.length} audited successfully. ${failed.length} failed:\n${failed.map(f => `• ${f.error}`).join('\n')}`);
+      }
     } catch (err) {
       alert('Audit failed: ' + err.message);
+      setRestaurants(prev => prev.map(r =>
+        toAudit.find(s => s.id === r.id) ? { ...r, status: 'new' } : r
+      ));
     } finally {
       setAuditing(false); setAuditStatus('');
     }
