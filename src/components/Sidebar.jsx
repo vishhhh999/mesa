@@ -1,115 +1,183 @@
 import React from 'react';
 import { useKeys } from '../context/KeysContext';
-import { useTheme } from '../context/ThemeContext';
 
-const NAV_ITEMS = [
-  { id: 'prospects',  icon: 'ti-layout-list',          label: 'Prospects',   countKey: 'total' },
-  { id: 'audit',      icon: 'ti-wand',                  label: 'Audit Queue', countKey: 'audit' },
-  { id: 'decks',      icon: 'ti-file-description',      label: 'Decks',       countKey: 'decks' },
-  { id: 'sent',       icon: 'ti-send',                  label: 'Sent',        countKey: 'sent' },
+const NAV = [
+  { id: 'prospects', icon: 'ti-layout-list',      label: 'Prospects',   countKey: 'total' },
+  { id: 'audit',     icon: 'ti-wand',              label: 'Audit',       countKey: 'audit' },
+  { id: 'decks',     icon: 'ti-file-description',  label: 'Decks',       countKey: 'decks' },
+  { id: 'sent',      icon: 'ti-send',              label: 'Sent',        countKey: 'sent'  },
 ];
 
 export default function Sidebar({ activeView, onNav, counts }) {
   const { locationLabel } = useKeys();
-  const { theme, isDark } = useTheme();
-  const { keys, saveKeys } = useKeys();
-
-  const toggleTheme = () => saveKeys({ theme: isDark ? 'light' : 'dark' });
 
   return (
-    <aside style={{
-      width: 210, minWidth: 210,
-      background: theme.surface,
-      borderRight: `0.5px solid ${theme.border}`,
-      display: 'flex', flexDirection: 'column', height: '100%',
-    }}>
-      {/* Logo */}
-      <div style={{ padding: '24px 20px 20px', borderBottom: `0.5px solid ${theme.border}` }}>
-        <div style={{ fontFamily: "'Fraunces', serif", fontSize: 24, fontWeight: 300, color: theme.ink, letterSpacing: '-0.5px' }}>
-          MESA
-        </div>
-        <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 9, color: theme.inkMuted, letterSpacing: '1.5px', textTransform: 'uppercase', marginTop: 3 }}>
-          Outreach Studio
-        </div>
+    <aside style={s.sidebar}>
+      {/* Wordmark */}
+      <div style={s.wordmark}>
+        <span style={s.wordmarkText}>MESA</span>
+        <span style={s.wordmarkSub}>Outreach Studio</span>
       </div>
 
       {/* Nav */}
-      <nav style={{ flex: 1, padding: '20px 0', overflowY: 'auto' }}>
-        <div style={labelStyle(theme)}>Pipeline</div>
-        {NAV_ITEMS.map(item => {
-          const active = activeView === item.id;
-          return (
-            <button key={item.id} style={navItemStyle(theme, active)} onClick={() => onNav(item.id)}>
-              <i className={`ti ${item.icon}`} style={{ fontSize: 15, flexShrink: 0 }} aria-hidden="true" />
-              <span style={{ flex: 1 }}>{item.label}</span>
-              {counts[item.countKey] !== undefined && (
-                <span style={{
-                  fontFamily: "'DM Mono', monospace", fontSize: 10,
-                  background: active ? theme.accentMid : theme.filterCountBg,
-                  color: active ? theme.accent : theme.inkMuted,
-                  padding: '2px 6px', borderRadius: 10,
-                }}>
-                  {counts[item.countKey]}
-                </span>
-              )}
-            </button>
-          );
-        })}
+      <nav style={s.nav}>
+        <div style={s.navGroup}>
+          <span style={s.navLabel}>Pipeline</span>
+          {NAV.map(item => {
+            const active = activeView === item.id;
+            return (
+              <button
+                key={item.id}
+                style={{ ...s.navItem, ...(active ? s.navItemActive : {}) }}
+                onClick={() => onNav(item.id)}
+              >
+                <i className={`ti ${item.icon}`} style={{ fontSize: 14, flexShrink: 0, opacity: active ? 1 : 0.5 }} />
+                <span style={{ flex: 1, fontSize: 13 }}>{item.label}</span>
+                {counts[item.countKey] > 0 && (
+                  <span style={{ ...s.count, ...(active ? s.countActive : {}) }}>
+                    {counts[item.countKey]}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
 
-        <div style={{ marginTop: 24 }}>
-          <div style={labelStyle(theme)}>Configure</div>
-          <button style={navItemStyle(theme, activeView === 'settings')} onClick={() => onNav('settings')}>
-            <i className="ti ti-adjustments-horizontal" style={{ fontSize: 15, flexShrink: 0 }} aria-hidden="true" />
-            <span style={{ flex: 1 }}>Settings</span>
+        <div style={{ ...s.navGroup, marginTop: 24 }}>
+          <span style={s.navLabel}>Configure</span>
+          <button
+            style={{ ...s.navItem, ...(activeView === 'settings' ? s.navItemActive : {}) }}
+            onClick={() => onNav('settings')}
+          >
+            <i className="ti ti-adjustments-horizontal" style={{ fontSize: 14, flexShrink: 0, opacity: activeView === 'settings' ? 1 : 0.5 }} />
+            <span style={{ flex: 1, fontSize: 13 }}>Settings</span>
           </button>
         </div>
       </nav>
 
       {/* Footer */}
-      <div style={{ padding: '14px 20px', borderTop: `0.5px solid ${theme.border}`, display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#4CAF50', flexShrink: 0 }} />
-            <span style={{ fontSize: 12, color: theme.inkMuted }}>{locationLabel()}</span>
-          </div>
-          {/* Theme toggle */}
-          <button
-            onClick={toggleTheme}
-            title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
-            style={{
-              background: 'transparent', border: `0.5px solid ${theme.border}`,
-              borderRadius: 6, padding: '4px 6px', cursor: 'pointer',
-              display: 'flex', alignItems: 'center', color: theme.inkMuted,
-              fontSize: 13,
-            }}
-          >
-            <i className={`ti ${isDark ? 'ti-sun' : 'ti-moon'}`} aria-hidden="true" />
-          </button>
+      <div style={s.footer}>
+        <div style={s.locationRow}>
+          <span style={s.locationDot} />
+          <span style={s.locationText}>{locationLabel()}</span>
         </div>
-        <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, color: theme.inkFaint }}>
-        v0.5 · beta
-        </div>
+        <span style={s.version}>v1.0 · beta</span>
       </div>
     </aside>
   );
 }
 
-function labelStyle(theme) {
-  return {
-    fontFamily: "'DM Mono', monospace", fontSize: 9,
-    letterSpacing: '1.5px', textTransform: 'uppercase',
-    color: theme.inkMuted, padding: '0 20px', marginBottom: 6,
-  };
-}
-
-function navItemStyle(theme, active) {
-  return {
-    display: 'flex', alignItems: 'center', gap: 10,
-    width: '100%', padding: '9px 20px',
-    background: active ? theme.navActive : 'transparent',
-    border: 'none', borderLeft: `2px solid ${active ? theme.accent : 'transparent'}`,
-    fontSize: 13, color: active ? theme.accent : theme.inkMuted,
-    cursor: 'pointer', textAlign: 'left', transition: 'all 0.15s',
+const s = {
+  sidebar: {
+    width: 200,
+    minWidth: 200,
+    height: '100%',
+    background: '#151515',
+    borderRight: '1px solid #2a2a2a',
+    display: 'flex',
+    flexDirection: 'column',
+  },
+  wordmark: {
+    padding: '28px 20px 24px',
+    borderBottom: '1px solid #2a2a2a',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 4,
+  },
+  wordmarkText: {
+    fontFamily: "'Space Grotesk', sans-serif",
+    fontSize: 20,
+    fontWeight: 700,
+    color: '#f0ece4',
+    letterSpacing: '0.12em',
+  },
+  wordmarkSub: {
+    fontFamily: "'DM Mono', monospace",
+    fontSize: 9,
+    color: '#5c5751',
+    letterSpacing: '0.12em',
+    textTransform: 'uppercase',
+  },
+  nav: {
+    flex: 1,
+    padding: '20px 0',
+    overflowY: 'auto',
+  },
+  navGroup: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 1,
+  },
+  navLabel: {
+    fontFamily: "'DM Mono', monospace",
+    fontSize: 9,
+    color: '#5c5751',
+    letterSpacing: '0.1em',
+    textTransform: 'uppercase',
+    padding: '0 20px',
+    marginBottom: 6,
+    display: 'block',
+  },
+  navItem: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 10,
+    width: '100%',
+    padding: '9px 20px',
+    background: 'transparent',
+    border: 'none',
+    borderLeft: '2px solid transparent',
+    color: '#9a9489',
+    cursor: 'pointer',
+    textAlign: 'left',
     fontFamily: "'DM Sans', sans-serif",
-  };
-}
+    transition: 'color 0.15s, background 0.15s',
+  },
+  navItemActive: {
+    color: '#c8b99a',
+    borderLeft: '2px solid #c8b99a',
+    background: '#1a1710',
+  },
+  count: {
+    fontFamily: "'DM Mono', monospace",
+    fontSize: 10,
+    background: '#1c1c1c',
+    color: '#5c5751',
+    padding: '2px 6px',
+    borderRadius: 4,
+  },
+  countActive: {
+    background: '#2e2616',
+    color: '#c8b99a',
+  },
+  footer: {
+    padding: '14px 20px',
+    borderTop: '1px solid #2a2a2a',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 6,
+  },
+  locationRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 7,
+  },
+  locationDot: {
+    width: 5,
+    height: 5,
+    borderRadius: '50%',
+    background: '#6fcf97',
+    flexShrink: 0,
+  },
+  locationText: {
+    fontSize: 12,
+    color: '#9a9489',
+    fontFamily: "'DM Sans', sans-serif",
+  },
+  version: {
+    fontFamily: "'DM Mono', monospace",
+    fontSize: 9,
+    color: '#3d3d3d',
+    letterSpacing: '0.06em',
+  },
+};

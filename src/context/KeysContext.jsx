@@ -10,7 +10,6 @@ const defaults = {
   countryCode: 'IN',
   state: '',
   city: '',
-  theme: 'light',
 };
 
 const KeysContext = createContext(null);

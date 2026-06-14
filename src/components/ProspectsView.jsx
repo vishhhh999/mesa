@@ -1,15 +1,17 @@
 import React, { useState } from 'react';
 import PipelineTrack from './PipelineTrack';
 import StatusTag from './StatusTag';
-import { useTheme } from '../context/ThemeContext';
 import RestaurantDrawer from './RestaurantDrawer';
 
-export default function ProspectsView({ restaurants, onToggle, onSelectAll, onDeselectAll, onRunAudit, onScrape, scraping, scrapeStatus, scrapeError, onGoSettings, locationLabel }) {
-  const { theme } = useTheme();
-  const [sortBy, setSortBy] = useState('photoScore');
-  const [sortDir, setSortDir] = useState('asc');
-  const [filterStatus, setFilterStatus] = useState('all');
-  const [drawerRestaurant, setDrawerRestaurant] = useState(null);
+export default function ProspectsView({
+  restaurants, onToggle, onSelectAll, onDeselectAll,
+  onRunAudit, onScrape, scraping, scrapeStatus,
+  scrapeError, onGoSettings, locationLabel,
+}) {
+  const [sortBy, setSortBy]       = useState('photoScore');
+  const [sortDir, setSortDir]     = useState('asc');
+  const [filterStatus, setFilter] = useState('all');
+  const [drawer, setDrawer]       = useState(null);
 
   const selected = restaurants.filter(r => r.selected);
 
@@ -18,46 +20,43 @@ export default function ProspectsView({ restaurants, onToggle, onSelectAll, onDe
     else { setSortBy(key); setSortDir('asc'); }
   };
 
-  const filtered = restaurants
+  const filtered = [...restaurants]
     .filter(r => filterStatus === 'all' || r.status === filterStatus)
     .sort((a, b) => {
       let av = a[sortBy], bv = b[sortBy];
-      if (typeof av === 'string') av = av.toLowerCase(), bv = bv.toLowerCase();
+      if (typeof av === 'string') { av = av.toLowerCase(); bv = bv.toLowerCase(); }
       if (sortDir === 'asc') return av > bv ? 1 : -1;
       return av < bv ? 1 : -1;
     });
 
-  const SortIcon = ({ col }) => {
-    if (sortBy !== col) return <i className="ti ti-selector" style={{ fontSize: 11, marginLeft: 3, opacity: 0.3 }} />;
-    return <i className={`ti ti-chevron-${sortDir === 'asc' ? 'up' : 'down'}`} style={{ fontSize: 11, marginLeft: 3, color: theme.accent }} />;
-  };
+  const STATUS_FILTERS = ['all','new','auditing','audited','mocked','sent','replied'];
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+    <div style={s.wrap}>
 
       {/* Topbar */}
-      <div style={{ background: theme.surface, borderBottom: `0.5px solid ${theme.border}`, padding: '16px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+      <div style={s.topbar}>
         <div>
-          <div style={{ fontSize: 14, fontWeight: 500, color: theme.ink }}>Prospects</div>
-          <div style={{ fontSize: 12, color: theme.inkMuted, marginTop: 1 }}>
+          <div style={s.topTitle}>Prospects</div>
+          <div style={s.topMeta}>
             {scraping
-              ? <span style={{ color: theme.accent }}>{scrapeStatus || 'Scraping...'}</span>
+              ? <span style={{ color: '#c8b99a' }}>{scrapeStatus || 'Scraping...'}</span>
               : restaurants.length > 0
-                ? `${locationLabel} · ${restaurants.length} restaurants · last scraped ${getLastScraped(restaurants)}`
-                : `${locationLabel || 'No location set'} · Hit Scrape to begin`
+                ? `${locationLabel} · ${restaurants.length} restaurants`
+                : `${locationLabel || 'No location set'} · No data yet`
             }
           </div>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
-            <button style={btnGhost(theme, scraping)} onClick={onScrape} disabled={scraping}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
+            <button style={s.btnGhost} onClick={onScrape} disabled={scraping}>
               <i className={`ti ${scraping ? 'ti-loader-2' : 'ti-refresh'}`} style={{ fontSize: 13 }} />
               {scraping ? 'Scraping...' : 'Scrape'}
             </button>
-            {scrapeError && <span style={{ fontSize: 11, color: '#E24B4A', maxWidth: 260, textAlign: 'right', lineHeight: 1.4 }}>{scrapeError}</span>}
+            {scrapeError && <span style={s.errorText}>{scrapeError}</span>}
           </div>
           <button
-            style={{ ...btnPrimary(theme), opacity: selected.length === 0 ? 0.45 : 1 }}
+            style={{ ...s.btnGold, opacity: selected.length === 0 ? 0.35 : 1 }}
             disabled={selected.length === 0}
             onClick={() => onRunAudit(selected)}
           >
@@ -67,37 +66,30 @@ export default function ProspectsView({ restaurants, onToggle, onSelectAll, onDe
         </div>
       </div>
 
-      {/* Stats */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', borderBottom: `0.5px solid ${theme.border}`, background: theme.statBg, flexShrink: 0 }}>
+      {/* Stats strip */}
+      <div style={s.statsStrip}>
         {[
-          { num: restaurants.length, label: 'Total scraped' },
-          { num: selected.length, label: 'Selected' },
-          { num: restaurants.filter(r => r.status === 'mocked' || r.status === 'audited').length, label: 'Audited' },
-          { num: restaurants.filter(r => r.status === 'sent' || r.status === 'replied').length, label: 'Emails sent' },
-        ].map((s, i) => (
-          <div key={i} style={{ padding: '14px 24px', borderRight: i < 3 ? `0.5px solid ${theme.border}` : 'none' }}>
-            <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 22, fontWeight: 500, color: theme.ink }}>{s.num}</div>
-            <div style={{ fontSize: 11, color: theme.inkMuted, marginTop: 2 }}>{s.label}</div>
+          { num: restaurants.length, label: 'Scraped' },
+          { num: selected.length,    label: 'Selected' },
+          { num: restaurants.filter(r => ['audited','mocked'].includes(r.status)).length, label: 'Audited' },
+          { num: restaurants.filter(r => ['sent','replied'].includes(r.status)).length,   label: 'Sent' },
+        ].map((stat, i) => (
+          <div key={i} style={{ ...s.statCell, borderRight: i < 3 ? '1px solid #2a2a2a' : 'none' }}>
+            <div style={s.statNum}>{stat.num}</div>
+            <div style={s.statLabel}>{stat.label}</div>
           </div>
         ))}
       </div>
 
-      {/* Filter tabs */}
-      <div style={{ display: 'flex', borderBottom: `0.5px solid ${theme.border}`, background: theme.surface, paddingLeft: 24, flexShrink: 0 }}>
-        {['all', 'new', 'audited', 'mocked', 'sent', 'replied'].map(f => {
+      {/* Filter row */}
+      <div style={s.filterRow}>
+        {STATUS_FILTERS.map(f => {
           const active = filterStatus === f;
+          const cnt = f === 'all' ? restaurants.length : restaurants.filter(r => r.status === f).length;
           return (
-            <button key={f} style={{
-              fontFamily: "'DM Sans',sans-serif", fontSize: 12, padding: '10px 14px',
-              background: 'transparent', border: 'none',
-              borderBottom: `2px solid ${active ? theme.accent : 'transparent'}`,
-              color: active ? theme.accent : theme.inkMuted,
-              cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, transition: 'all 0.15s',
-            }} onClick={() => setFilterStatus(f)}>
+            <button key={f} style={{ ...s.filterTab, ...(active ? s.filterTabActive : {}) }} onClick={() => setFilter(f)}>
               {f === 'all' ? 'All' : f.charAt(0).toUpperCase() + f.slice(1)}
-              <span style={{ fontFamily: "'DM Mono',monospace", fontSize: 10, background: theme.filterCountBg, color: theme.filterCountColor, padding: '1px 5px', borderRadius: 10 }}>
-                {f === 'all' ? restaurants.length : restaurants.filter(r => r.status === f).length}
-              </span>
+              {cnt > 0 && <span style={{ ...s.filterCount, ...(active ? s.filterCountActive : {}) }}>{cnt}</span>}
             </button>
           );
         })}
@@ -105,88 +97,109 @@ export default function ProspectsView({ restaurants, onToggle, onSelectAll, onDe
 
       {/* Empty state */}
       {restaurants.length === 0 && !scraping && (
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 48, textAlign: 'center' }}>
-          <i className="ti ti-map-pin-off" style={{ fontSize: 32, color: theme.emptyIconColor, marginBottom: 14 }} aria-hidden="true" />
-          <div style={{ fontSize: 15, fontWeight: 500, color: theme.ink, marginBottom: 8 }}>No restaurants yet</div>
-          <div style={{ fontSize: 13, color: theme.inkMuted, maxWidth: 340, lineHeight: 1.65 }}>
+        <div style={s.empty}>
+          <i className="ti ti-map-pin-off" style={{ fontSize: 28, color: '#2a2a2a', marginBottom: 16 }} />
+          <div style={s.emptyTitle}>No restaurants yet</div>
+          <div style={s.emptyDesc}>
             {locationLabel ? `Hit Scrape to pull restaurants from ${locationLabel}.` : 'Set a target location in Settings, then hit Scrape.'}
           </div>
-          <div style={{ display: 'flex', gap: 10, marginTop: 18 }}>
-            <button style={btnGhost(theme)} onClick={onGoSettings}>
+          <div style={{ display: 'flex', gap: 10, marginTop: 24 }}>
+            <button style={s.btnGhost} onClick={onGoSettings}>
               <i className="ti ti-adjustments-horizontal" style={{ fontSize: 13 }} /> Settings
             </button>
-            <button style={{ ...btnPrimary(theme), opacity: scraping ? 0.6 : 1 }} onClick={onScrape} disabled={scraping}>
-              <i className={`ti ${scraping ? 'ti-loader-2' : 'ti-refresh'}`} style={{ fontSize: 13 }} />
-              {scraping ? 'Scraping...' : `Scrape ${locationLabel || ''}`}
+            <button style={s.btnGold} onClick={onScrape} disabled={scraping}>
+              <i className="ti ti-refresh" style={{ fontSize: 13 }} />
+              {scraping ? 'Scraping...' : 'Scrape'}
             </button>
           </div>
-          {scrapeError && <div style={{ marginTop: 12, fontSize: 11, color: '#E24B4A', maxWidth: 340, lineHeight: 1.5 }}>{scrapeError}</div>}
+          {scrapeError && <div style={{ ...s.errorText, marginTop: 12, textAlign: 'center' }}>{scrapeError}</div>}
         </div>
       )}
 
-      {/* Scraping loading state */}
+      {/* Scraping loading */}
       {scraping && restaurants.length === 0 && (
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12 }}>
-          <i className="ti ti-loader-2 ti-spin" style={{ fontSize: 28, color: theme.accent }} aria-hidden="true" />
-          <div style={{ fontSize: 14, color: theme.ink, fontWeight: 500 }}>Scraping Google Maps...</div>
-          <div style={{ fontSize: 12, color: theme.inkMuted }}>{scrapeStatus}</div>
+        <div style={{ ...s.empty, gap: 12 }}>
+          <i className="ti ti-loader-2" style={{ fontSize: 28, color: '#c8b99a' }} />
+          <div style={s.emptyTitle}>Scraping Google Maps</div>
+          <div style={s.emptyDesc}>{scrapeStatus}</div>
         </div>
       )}
 
       {/* Table */}
       {restaurants.length > 0 && (
-        <div style={{ flex: 1, overflowY: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+        <div style={s.tableWrap}>
+          <table style={s.table}>
             <thead>
               <tr>
-                <th style={{ ...th(theme), width: 40 }}>
-                  <div
-                    style={{ width: 16, height: 16, border: `1.5px solid ${selected.length === filtered.length && filtered.length > 0 ? theme.accent : '#D4D0C8'}`, borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', background: selected.length === filtered.length && filtered.length > 0 ? theme.accent : 'transparent' }}
-                    onClick={() => selected.length === filtered.length ? onDeselectAll() : onSelectAll()}
-                  >
-                    {selected.length === filtered.length && filtered.length > 0 && <i className="ti ti-check" style={{ fontSize: 10, color: '#fff' }} />}
-                  </div>
+                <th style={{ ...s.th, width: 32 }}></th>
+                <th style={{ ...s.th, cursor: 'pointer' }} onClick={() => handleSort('name')}>
+                  Restaurant <SortChevron col="name" sortBy={sortBy} sortDir={sortDir} />
                 </th>
-                <th style={{ ...th(theme), cursor: 'pointer' }} onClick={() => handleSort('name')}>Restaurant <SortIcon col="name" /></th>
-                <th style={{ ...th(theme), cursor: 'pointer' }} onClick={() => handleSort('rating')}>Rating <SortIcon col="rating" /></th>
-                <th style={{ ...th(theme), cursor: 'pointer' }} onClick={() => handleSort('photoScore')}>Photo score <SortIcon col="photoScore" /></th>
-                <th style={th(theme)}>Pipeline</th>
-                <th style={th(theme)}>Status</th>
-                <th style={{ ...th(theme), width: 40 }}></th>
+                <th style={{ ...s.th, cursor: 'pointer' }} onClick={() => handleSort('rating')}>
+                  Rating <SortChevron col="rating" sortBy={sortBy} sortDir={sortDir} />
+                </th>
+                <th style={{ ...s.th, cursor: 'pointer' }} onClick={() => handleSort('photoScore')}>
+                  Photo score <SortChevron col="photoScore" sortBy={sortBy} sortDir={sortDir} />
+                </th>
+                <th style={s.th}>Pipeline</th>
+                <th style={s.th}>Status</th>
+                <th style={{ ...s.th, width: 32 }}></th>
               </tr>
             </thead>
             <tbody>
               {filtered.length === 0 && (
-                <tr><td colSpan={7} style={{ textAlign: 'center', color: theme.inkMuted, fontSize: 13, padding: 48 }}>No restaurants in this filter.</td></tr>
+                <tr><td colSpan={7} style={s.emptyCell}>No restaurants match this filter.</td></tr>
               )}
               {filtered.map(r => (
-                <tr key={r.id} style={{ borderBottom: `0.5px solid ${theme.borderLight}`, cursor: 'pointer', background: r.selected ? theme.tableRowSelected : theme.tableRow }} onClick={() => onToggle(r.id)}>
-                  <td style={td(theme)}>
-                    <div style={{ width: 16, height: 16, border: `1.5px solid ${r.selected ? theme.accent : '#D4D0C8'}`, borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', background: r.selected ? theme.accent : 'transparent', flexShrink: 0 }}>
-                      {r.selected && <i className="ti ti-check" style={{ fontSize: 10, color: '#fff' }} />}
+                <tr
+                  key={r.id}
+                  style={{
+                    ...s.row,
+                    borderLeft: `2px solid ${r.selected ? '#c8b99a' : 'transparent'}`,
+                    background: r.selected ? '#1a1710' : '#151515',
+                  }}
+                  onClick={() => onToggle(r.id)}
+                >
+                  {/* Selection indicator */}
+                  <td style={s.td}>
+                    <div style={{
+                      width: 14, height: 14,
+                      border: `1px solid ${r.selected ? '#c8b99a' : '#3d3d3d'}`,
+                      borderRadius: 3,
+                      background: r.selected ? '#c8b99a' : 'transparent',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      flexShrink: 0, transition: 'all 0.15s',
+                    }}>
+                      {r.selected && <i className="ti ti-check" style={{ fontSize: 9, color: '#0e0e0e' }} />}
                     </div>
                   </td>
-                  <td style={td(theme)}>
-                    <div style={{ fontWeight: 500, fontSize: 13, color: theme.ink }}>{r.name}</div>
-                    <div style={{ fontSize: 11, color: theme.inkMuted, marginTop: 2 }}>{r.cuisine} · {r.area}</div>
+                  <td style={s.td}>
+                    <div style={s.restName}>{r.name}</div>
+                    <div style={s.restMeta}>{r.cuisine} · {r.area}</div>
                   </td>
-                  <td style={td(theme)}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                      <div style={{ width: 6, height: 6, borderRadius: '50%', background: r.rating >= 4.2 ? '#639922' : r.rating >= 3.8 ? '#EF9F27' : '#E24B4A', flexShrink: 0 }} />
-                      <span style={{ fontFamily: "'DM Mono',monospace", fontSize: 12, color: theme.ink }}>{r.rating}</span>
+                  <td style={s.td}>
+                    <span style={{
+                      fontFamily: "'DM Mono', monospace", fontSize: 12,
+                      color: r.rating >= 4.2 ? '#6fcf97' : r.rating >= 3.8 ? '#f2994a' : '#eb5757',
+                    }}>{r.rating}</span>
+                  </td>
+                  <td style={s.td}>
+                    <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, color: '#f0ece4' }}>
+                      {r.photoScore}<span style={{ color: '#5c5751', fontSize: 10 }}>/100</span>
+                    </div>
+                    <div style={{ height: 2, background: '#2a2a2a', borderRadius: 1, marginTop: 5, width: 52 }}>
+                      <div style={{
+                        height: '100%', borderRadius: 1,
+                        width: `${r.photoScore}%`,
+                        background: r.photoScore < 30 ? '#eb5757' : r.photoScore < 50 ? '#f2994a' : '#6fcf97',
+                      }} />
                     </div>
                   </td>
-                  <td style={td(theme)}>
-                    <div style={{ fontFamily: "'DM Mono',monospace", fontSize: 12, color: theme.ink }}>{r.photoScore}<span style={{ color: theme.inkFaint, fontSize: 10 }}>/100</span></div>
-                    <div style={{ height: 3, background: theme.scoreBarBg, borderRadius: 2, marginTop: 4, width: 56 }}>
-                      <div style={{ height: '100%', borderRadius: 2, width: `${r.photoScore}%`, background: r.photoScore < 30 ? '#E24B4A' : r.photoScore < 50 ? '#EF9F27' : '#639922' }} />
-                    </div>
-                  </td>
-                  <td style={td(theme)}><PipelineTrack status={r.status} /></td>
-                  <td style={td(theme)}><StatusTag status={r.status} /></td>
-                  <td style={td(theme)} onClick={e => { e.stopPropagation(); setDrawerRestaurant(r); }}>
-                    <button style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: 4, borderRadius: 4, display: 'flex', alignItems: 'center' }}>
-                      <i className="ti ti-chevron-right" style={{ fontSize: 14, color: theme.inkMuted }} />
+                  <td style={s.td}><PipelineTrack status={r.status} /></td>
+                  <td style={s.td}><StatusTag status={r.status} /></td>
+                  <td style={s.td} onClick={e => { e.stopPropagation(); setDrawer(r); }}>
+                    <button style={s.rowArrow}>
+                      <i className="ti ti-chevron-right" style={{ fontSize: 13, color: '#5c5751' }} />
                     </button>
                   </td>
                 </tr>
@@ -197,46 +210,72 @@ export default function ProspectsView({ restaurants, onToggle, onSelectAll, onDe
       )}
 
       {/* Bottom bar */}
-      <div style={{ background: theme.surface, borderTop: `0.5px solid ${theme.border}`, padding: '12px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
-        <span style={{ fontFamily: "'DM Mono',monospace", fontSize: 11, color: theme.inkMuted }}>
-          <span style={{ color: theme.accent, fontWeight: 500 }}>{selected.length}</span> of {restaurants.length} selected
+      <div style={s.bottomBar}>
+        <span style={s.selCount}>
+          <span style={{ color: '#c8b99a' }}>{selected.length}</span>
+          <span style={{ color: '#5c5751' }}> / {restaurants.length} selected</span>
         </span>
         <div style={{ display: 'flex', gap: 8 }}>
-          <button style={{ ...btnGhost(theme), opacity: selected.length === 0 ? 0.4 : 1 }} disabled={selected.length === 0} onClick={onDeselectAll}>Deselect all</button>
-          <button style={btnGhost(theme)} onClick={onSelectAll}>Select all</button>
+          <button style={{ ...s.btnGhost, opacity: selected.length === 0 ? 0.35 : 1 }} disabled={selected.length === 0} onClick={onDeselectAll}>
+            Deselect all
+          </button>
+          <button style={s.btnGhost} onClick={onSelectAll}>Select all</button>
         </div>
       </div>
 
-      {/* Restaurant detail drawer */}
-      {drawerRestaurant && (
+      {drawer && (
         <RestaurantDrawer
-          restaurant={restaurants.find(r => r.id === drawerRestaurant.id) || drawerRestaurant}
-          onClose={() => setDrawerRestaurant(null)}
+          restaurant={restaurants.find(r => r.id === drawer.id) || drawer}
+          onClose={() => setDrawer(null)}
         />
       )}
     </div>
   );
 }
 
+function SortChevron({ col, sortBy, sortDir }) {
+  if (sortBy !== col) return <i className="ti ti-selector" style={{ fontSize: 10, marginLeft: 3, opacity: 0.25 }} />;
+  return <i className={`ti ti-chevron-${sortDir === 'asc' ? 'up' : 'down'}`} style={{ fontSize: 10, marginLeft: 3, color: '#c8b99a' }} />;
+}
+
 function getLastScraped(restaurants) {
   const dates = restaurants.map(r => r.scrapedAt).filter(Boolean);
-  if (dates.length === 0) return 'unknown';
-  const latest = new Date(Math.max(...dates.map(d => new Date(d))));
-  const mins = Math.round((Date.now() - latest) / 60000);
+  if (!dates.length) return '';
+  const mins = Math.round((Date.now() - new Date(Math.max(...dates.map(d => new Date(d))))) / 60000);
   if (mins < 2) return 'just now';
   if (mins < 60) return `${mins}m ago`;
   return `${Math.round(mins / 60)}h ago`;
 }
 
-function th(theme) {
-  return { fontFamily: "'DM Mono',monospace", fontSize: 9, letterSpacing: '1.2px', textTransform: 'uppercase', color: theme.inkMuted, padding: '10px 14px', textAlign: 'left', background: theme.tableHead, borderBottom: `0.5px solid ${theme.border}`, fontWeight: 400, position: 'sticky', top: 0, zIndex: 1, userSelect: 'none' };
-}
-function td(theme) {
-  return { padding: '13px 14px', fontSize: 13, color: theme.ink, verticalAlign: 'middle' };
-}
-function btnGhost(theme, disabled) {
-  return { fontFamily: "'DM Sans',sans-serif", fontSize: 12, padding: '7px 14px', borderRadius: 8, cursor: disabled ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: 6, background: theme.btnGhostBg, border: `0.5px solid ${theme.border}`, color: theme.btnGhostColor, transition: 'all 0.15s', opacity: disabled ? 0.6 : 1 };
-}
-function btnPrimary(theme) {
-  return { fontFamily: "'DM Sans',sans-serif", fontSize: 12, padding: '7px 14px', borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, background: theme.accent, color: '#fff', border: 'none', transition: 'all 0.15s' };
-}
+const s = {
+  wrap:       { display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', background: '#0e0e0e' },
+  topbar:     { background: '#151515', borderBottom: '1px solid #2a2a2a', padding: '18px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 },
+  topTitle:   { fontFamily: "'Space Grotesk', sans-serif", fontSize: 15, fontWeight: 500, color: '#f0ece4' },
+  topMeta:    { fontSize: 12, color: '#5c5751', marginTop: 2, fontFamily: "'DM Sans', sans-serif" },
+  statsStrip: { display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', borderBottom: '1px solid #2a2a2a', background: '#151515', flexShrink: 0 },
+  statCell:   { padding: '14px 24px' },
+  statNum:    { fontFamily: "'DM Mono', monospace", fontSize: 20, fontWeight: 500, color: '#f0ece4' },
+  statLabel:  { fontSize: 11, color: '#5c5751', marginTop: 3, fontFamily: "'DM Sans', sans-serif" },
+  filterRow:  { display: 'flex', borderBottom: '1px solid #2a2a2a', background: '#151515', paddingLeft: 24, flexShrink: 0, overflowX: 'auto' },
+  filterTab:  { fontFamily: "'DM Sans', sans-serif", fontSize: 12, padding: '10px 14px', background: 'transparent', border: 'none', borderBottom: '2px solid transparent', color: '#5c5751', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, transition: 'all 0.15s', whiteSpace: 'nowrap' },
+  filterTabActive: { color: '#c8b99a', borderBottom: '2px solid #c8b99a' },
+  filterCount: { fontFamily: "'DM Mono', monospace", fontSize: 9, background: '#1c1c1c', color: '#5c5751', padding: '2px 5px', borderRadius: 3 },
+  filterCountActive: { background: '#2e2616', color: '#c8b99a' },
+  tableWrap:  { flex: 1, overflowY: 'auto' },
+  table:      { width: '100%', borderCollapse: 'collapse' },
+  th:         { fontFamily: "'DM Mono', monospace", fontSize: 9, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#5c5751', padding: '10px 14px', textAlign: 'left', background: '#0e0e0e', borderBottom: '1px solid #2a2a2a', fontWeight: 400, position: 'sticky', top: 0, zIndex: 1, userSelect: 'none' },
+  row:        { borderBottom: '1px solid #1f1f1f', cursor: 'pointer', transition: 'background 0.1s, border-left 0.1s' },
+  td:         { padding: '14px 14px', fontSize: 13, color: '#f0ece4', verticalAlign: 'middle' },
+  restName:   { fontWeight: 500, fontSize: 13, color: '#f0ece4', fontFamily: "'DM Sans', sans-serif" },
+  restMeta:   { fontSize: 11, color: '#5c5751', marginTop: 2, fontFamily: "'DM Sans', sans-serif" },
+  rowArrow:   { background: 'transparent', border: 'none', cursor: 'pointer', padding: '4px 6px', borderRadius: 4, display: 'flex', alignItems: 'center', transition: 'background 0.1s' },
+  empty:      { flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 64, textAlign: 'center' },
+  emptyTitle: { fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, fontWeight: 500, color: '#f0ece4', marginBottom: 8 },
+  emptyDesc:  { fontSize: 13, color: '#5c5751', maxWidth: 320, lineHeight: 1.7, fontFamily: "'DM Sans', sans-serif" },
+  emptyCell:  { textAlign: 'center', color: '#5c5751', fontSize: 13, padding: 64 },
+  bottomBar:  { background: '#151515', borderTop: '1px solid #2a2a2a', padding: '12px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 },
+  selCount:   { fontFamily: "'DM Mono', monospace", fontSize: 11 },
+  errorText:  { fontSize: 11, color: '#eb5757', maxWidth: 260, textAlign: 'right', lineHeight: 1.5 },
+  btnGhost:   { fontFamily: "'DM Sans', sans-serif", fontSize: 12, padding: '8px 14px', borderRadius: 6, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, background: 'transparent', border: '1px solid #2a2a2a', color: '#9a9489', transition: 'all 0.15s' },
+  btnGold:    { fontFamily: "'DM Sans', sans-serif", fontSize: 12, padding: '8px 14px', borderRadius: 6, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, background: '#c8b99a', color: '#0e0e0e', border: 'none', fontWeight: 500, transition: 'all 0.15s' },
+};
