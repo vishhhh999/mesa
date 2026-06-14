@@ -23,10 +23,10 @@ export default function DeckModal({ restaurant, onClose, onUpdateRestaurant }) {
   }, []);
 
   const handleGenerate = async () => {
-    if (!keys.openaiKey) { setError('No OpenAI API key — add it in Settings.'); setStage(ST.ERR); return; }
+    if (!keys.openaiKey || !keys.anthropicKey) { setError('OpenAI and Anthropic API keys required. Add both in Settings.'); setStage(ST.ERR); return; }
     setStage(ST.GEN); setError(null);
     try {
-      const imgs = await generateDeckImages(restaurant, keys.openaiKey, (i, total) => setProgress(`Generating image ${i + 1} of ${total}...`));
+      const imgs = await generateDeckImages(restaurant, keys.openaiKey, keys.anthropicKey, (msg) => setProgress(msg));
       setImages(imgs); setStage(ST.READY); setProgress('');
       onUpdateRestaurant(restaurant.id, { deckImages: imgs, status: 'mocked' });
     } catch (err) { setError(err.message); setStage(ST.ERR); setProgress(''); }
