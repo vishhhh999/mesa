@@ -15,8 +15,8 @@ const ONBOARDING_KEY = 'mesa_onboarding_done';
 function MesaApp() {
   const {
     userId, settings, loading,
-    locationLabel, searchLocation, locationKey,
-    anthropicKey, openaiKey, apifyToken,
+    locationLabel, searchLocation, locationKey, dataKey,
+    anthropicKey, openaiKey, apifyToken, industry,
   } = useAuth();
 
   const [view,          setView]         = useState('prospects');
@@ -29,17 +29,17 @@ function MesaApp() {
   const [auditStatus,   setAuditStatus]  = useState('');
   const [showOnboard,   setShowOnboard]  = useState(false);
 
-  // Load restaurants from Supabase when userId or location changes
+  // Load restaurants from Supabase when userId, location, or industry changes
   useEffect(() => {
     if (!userId) return;
-    const loc = locationKey();
-    if (!loc || loc === 'default') { setRestaurantsRaw([]); return; }
+    const key = dataKey();
+    if (!key || key.startsWith('default')) { setRestaurantsRaw([]); return; }
     setRestLoading(true);
-    loadRestaurants(userId, loc)
+    loadRestaurants(userId, key)
       .then(data => setRestaurantsRaw(Array.isArray(data) ? data : []))
       .catch(() => setRestaurantsRaw([]))
       .finally(() => setRestLoading(false));
-  }, [userId, settings?.city, settings?.state, settings?.country]);
+  }, [userId, settings?.city, settings?.state, settings?.country, settings?.industry]);
 
   // Show onboarding for new sessions
   useEffect(() => {
@@ -52,25 +52,27 @@ function MesaApp() {
     const resolved = typeof data === 'function' ? data(restaurants) : data;
     setRestaurantsRaw(resolved);
     if (userId) {
-      const loc = locationKey();
-      if (loc && loc !== 'default') {
-        saveRestaurants(userId, loc, resolved).catch(console.error);
+      const key = dataKey();
+      if (key && !key.startsWith('default')) {
+        saveRestaurants(userId, key, resolved).catch(console.error);
       }
     }
   };
 
-  const toggleSelect    = id      => setRestaurants(prev => prev.map(r => r.id === id ? { ...r, selected: !r.selected } : r));
-  const selectAll       = ()      => setRestaurants(prev => prev.map(r => ({ ...r, selected: true })));
-  const deselectAll     = ()      => setRestaurants(prev => prev.map(r => ({ ...r, selected: false })));
+  const toggleSelect     = id      => setRestaurants(prev => prev.map(r => r.id === id ? { ...r, selected: !r.selected } : r));
+  const selectAll        = ()      => setRestaurants(prev => prev.map(r => ({ ...r, selected: true })));
+  const deselectAll      = ()      => setRestaurants(prev => prev.map(r => ({ ...r, selected: false })));
   const updateRestaurant = (id, u) => setRestaurants(prev => prev.map(r => r.id === id ? { ...r, ...u } : r));
 
   const handleScrape = async () => {
-    if (!apifyToken)  { setScrapeError('Add your Apify token in Settings first.'); return; }
+    if (!apifyToken) { setScrapeError('Add your Apify token in Settings first.'); return; }
     const loc = searchLocation();
     if (!loc) { setScrapeError('Set a target location in Settings first.'); return; }
+    const { getSearchQuery } = await import('./data/industries');
+    const query = getSearchQuery(industry, loc);
     setScraping(true); setScrapeError(null); setScrapeStatus('Starting...');
     try {
-      const results = await scrapeRestaurants(apifyToken, loc, msg => setScrapeStatus(msg));
+      const results = await scrapeRestaurants(apifyToken, query, msg => setScrapeStatus(msg));
       await setRestaurants(results);
       setScrapeStatus('');
     } catch (err) { setScrapeError(err.message); setScrapeStatus(''); }
@@ -85,9 +87,11 @@ function MesaApp() {
     setView('audit');
     await setRestaurants(prev => prev.map(r => toAudit.find(s => s.id === r.id) ? { ...r, status: 'auditing' } : r));
     try {
+      const { getIndustry } = await import('./data/industries');
+      const industryContext = getIndustry(industry).auditContext;
       const results = await auditBatch(toAudit, anthropicKey, (i, total, name) => {
         setAuditStatus(`Auditing ${name}... (${i + 1} of ${total})`);
-      });
+      }, industryContext);
       await setRestaurants(prev => prev.map(r => {
         const res = results.find(x => x.id === r.id);
         if (!res) return r;

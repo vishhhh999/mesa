@@ -5,6 +5,7 @@ export default async function handler(req, res) {
   }
 
   const { restaurant, anthropicKey } = req.body;
+  const industryContext = req.body.industryContext || 'restaurant rebrand — focus on menu design, food photography, brand identity, and dining experience positioning.';
 
   if (!anthropicKey) {
     return res.status(400).json({ error: 'No Anthropic API key provided' });
@@ -14,7 +15,7 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'No restaurant data provided' });
   }
 
-  const prompt = `You are a senior brand strategist and designer. Analyze this restaurant and produce a concise brand audit to support a rebrand pitch.
+  const prompt = `You are a senior brand strategist and designer. Analyze this business and produce a concise brand audit to support a rebrand pitch. Focus: ${industryContext}
 
 Restaurant details:
 - Name: ${restaurant.name}

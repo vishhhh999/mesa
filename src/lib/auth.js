@@ -9,29 +9,19 @@ async function hashKey(key) {
   return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
-// Validate the Anthropic key is real by making a minimal API call
+// Validate the Anthropic key via a serverless proxy (avoids browser CORS)
 export async function validateAnthropicKey(key) {
   try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
+    const res = await fetch('/api/verify-key', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': key.trim(),
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-calls': 'true',
-      },
-      body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 10,
-        messages: [{ role: 'user', content: 'hi' }],
-      }),
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userKey: key.trim() }),
     });
-    // 200 = valid, 401 = invalid key, anything else = network/server issue
-    if (res.status === 401) return { valid: false, error: 'Invalid API key.' };
-    if (!res.ok && res.status !== 200) return { valid: false, error: `API error ${res.status} — try again.` };
-    return { valid: true };
+    const data = await res.json();
+    if (!res.ok) return { valid: false, error: data.error || 'Verification failed.' };
+    return { valid: data.valid, error: data.error || '' };
   } catch (err) {
-    return { valid: false, error: 'Could not reach Anthropic API. Check your connection.' };
+    return { valid: false, error: 'Could not reach verification server. Check your connection.' };
   }
 }
 
