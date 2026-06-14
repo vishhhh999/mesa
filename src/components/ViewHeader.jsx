@@ -1,9 +1,9 @@
 import React, { useEffect, useRef } from 'react';
-import { useKeys } from '../context/KeysContext';
+import { useAuth } from '../context/AuthContext';
 
 export default function ViewHeader({ title, meta, actions, animate }) {
   const lineRef = useRef(null);
-  const { locationLabel } = useKeys();
+  const { locationLabel } = useAuth();
 
   useEffect(() => {
     if (lineRef.current) {

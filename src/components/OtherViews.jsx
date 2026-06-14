@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useKeys } from '../context/KeysContext';
+import { useAuth } from '../context/AuthContext';
 import { COUNTRIES, getStates, getCities, getCountryCode } from '../data/locations';
 import { BtnGold, BtnGhost, EmptyState, MonoLabel, AuditBlock, StatusTag, Input, Select } from './DesignSystem';
 import ViewHeader from './ViewHeader';
@@ -150,8 +150,14 @@ export function SentView({ restaurants }) {
 
 /* ── SettingsView ──────────────────────────────────────────────── */
 export function SettingsView() {
-  const { keys, saveKeys } = useKeys();
-  const [form, setForm]    = useState({ ...keys });
+  const { settings, updateSettings, logout, anthropicKey } = useAuth();
+  const [form, setForm]    = useState({
+    openai_key:  settings?.openai_key  || '',
+    apify_token: settings?.apify_token || '',
+    country:     settings?.country     || 'India',
+    state:       settings?.state       || '',
+    city:        settings?.city        || '',
+  });
   const [saved, setSaved]  = useState(false);
 
   const states = getStates(form.country);
@@ -159,10 +165,14 @@ export function SettingsView() {
 
   const set = (field, val) => { setForm(p => ({ ...p, [field]: val })); setSaved(false); };
 
-  const handleCountryChange = c  => setForm(p => ({ ...p, country: c, countryCode: getCountryCode(c), state: '', city: '' }));
+  const handleCountryChange = c  => setForm(p => ({ ...p, country: c, state: '', city: '' }));
   const handleStateChange   = st => setForm(p => ({ ...p, state: st, city: '' }));
 
-  const handleSave = () => { saveKeys(form); setSaved(true); setTimeout(() => setSaved(false), 2500); };
+  const handleSave = async () => {
+    await updateSettings(form);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2500);
+  };
 
   return (
     <div style={s.view} className="view-enter">
@@ -199,17 +209,15 @@ export function SettingsView() {
               <div style={{ fontSize: 11, color: '#5c5751', background: '#0e0e0e', border: '1px solid #2a2a2a', borderRadius: 6, padding: '8px 12px', display: 'flex', alignItems: 'center', gap: 6 }}>
                 <span style={{ color: '#c8b99a', fontSize: 12 }}>◎</span>
                 Searching: <span style={{ color: '#f0ece4' }}>{[form.city, form.state, form.country].filter(Boolean).join(', ') || 'Nothing selected'}</span>
-              </div>
-            </div>
+              </div>            </div>
           </section>
 
           <section>
             <MonoLabel>API Keys</MonoLabel>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {[
-                { key: 'anthropicKey', label: 'Anthropic API Key', placeholder: 'sk-ant-...' },
-                { key: 'openaiKey',    label: 'OpenAI API Key',    placeholder: 'sk-...' },
-                { key: 'apifyToken',   label: 'Apify API Token',   placeholder: 'apify_api_...' },
+                { key: 'openai_key',  label: 'OpenAI API Key',  placeholder: 'sk-...' },
+                { key: 'apify_token', label: 'Apify API Token', placeholder: 'apify_api_...' },
               ].map(f => (
                 <div key={f.key}>
                   <label style={s.fieldLabel}>
@@ -224,14 +232,22 @@ export function SettingsView() {
                   />
                 </div>
               ))}
+              <div style={{ fontSize: 11, color: '#5c5751', background: '#0e0e0e', border: '1px solid #2a2a2a', borderRadius: 6, padding: '8px 12px' }}>
+                <span style={{ color: '#c8b99a' }}>✓</span> Anthropic key — verified at login, stored securely.
+              </div>
             </div>
           </section>
 
-          <div style={{ fontSize: 11, color: '#3d3d3d', display: 'flex', alignItems: 'center', gap: 5 }}>
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/>
-            </svg>
-            Keys stored in localStorage on this device only.
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ fontSize: 11, color: '#3d3d3d', display: 'flex', alignItems: 'center', gap: 5 }}>
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/>
+              </svg>
+              Settings synced to Supabase across devices.
+            </div>
+            <BtnGhost onClick={logout} style={{ fontSize: 11, padding: '6px 12px', color: '#eb5757', borderColor: '#2a2a2a' }}>
+              Sign out
+            </BtnGhost>
           </div>
         </div>
       </div>

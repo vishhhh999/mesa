@@ -1,34 +1,52 @@
 import React, { useState, useEffect } from 'react';
-import { useKeys } from '../context/KeysContext';
+import { useAuth } from '../context/AuthContext';
 import { BtnGold, BtnGhost, MonoLabel, AuditBlock } from './DesignSystem';
 import { generateDeckImages } from '../utils/imageGen';
 import { generateDeckPDF } from '../utils/pdfGen';
+import { loadDeckImages, saveDeckImages } from '../lib/auth';
 
 const ST = { IDLE: 'idle', GEN: 'generating', READY: 'ready', ERR: 'error' };
 
-export default function DeckModal({ restaurant, onClose, onUpdateRestaurant }) {
-  const { keys } = useKeys();
+export default function DeckModal({ restaurant, onClose, onUpdateRestaurant, userId }) {
+  const { openaiKey, anthropicKey } = useAuth();
   const [stage,    setStage]   = useState(ST.IDLE);
-  const [images,   setImages]  = useState(restaurant.deckImages || []);
+  const [images,   setImages]  = useState([]);
   const [progress, setProgress] = useState('');
   const [error,    setError]   = useState(null);
   const [pdfBusy,  setPdfBusy] = useState(false);
+  const [imgLoading, setImgLoading] = useState(true);
 
   const hasImages = images.length > 0;
   const audit = restaurant.audit;
   const hexes = (audit?.rebrandDirection || '').match(/#[0-9A-Fa-f]{6}/g) || [];
 
+  // Load images from Supabase on mount
   useEffect(() => {
-    if (!hasImages && audit) handleGenerate();
+    const uid = userId || (typeof onUpdateRestaurant === 'function' ? null : null);
+    loadDeckImages(userId, restaurant.id)
+      .then(imgs => {
+        if (imgs && imgs.length > 0) {
+          setImages(imgs);
+          setStage(ST.READY);
+        } else if (audit) {
+          handleGenerate();
+        }
+      })
+      .catch(() => { if (audit) handleGenerate(); })
+      .finally(() => setImgLoading(false));
   }, []);
 
   const handleGenerate = async () => {
-    if (!keys.openaiKey || !keys.anthropicKey) { setError('OpenAI and Anthropic API keys required. Add both in Settings.'); setStage(ST.ERR); return; }
+    if (!openaiKey || !anthropicKey) { setError('OpenAI and Anthropic API keys required — check Settings.'); setStage(ST.ERR); return; }
     setStage(ST.GEN); setError(null);
     try {
-      const imgs = await generateDeckImages(restaurant, keys.openaiKey, keys.anthropicKey, (msg) => setProgress(msg));
+      const imgs = await generateDeckImages(restaurant, openaiKey, anthropicKey, (msg) => setProgress(msg));
       setImages(imgs); setStage(ST.READY); setProgress('');
-      onUpdateRestaurant(restaurant.id, { deckImages: imgs, status: 'mocked' });
+      // Save to Supabase — no localStorage quota issues
+      if (userId) {
+        await saveDeckImages(userId, restaurant.id, imgs[0], imgs[1]).catch(console.error);
+      }
+      onUpdateRestaurant(restaurant.id, { status: 'mocked', hasDeckImages: true });
     } catch (err) { setError(err.message); setStage(ST.ERR); setProgress(''); }
   };
 

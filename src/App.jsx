@@ -2,46 +2,61 @@ import React, { useState, useEffect } from 'react';
 import FloatingNav from './components/FloatingNav';
 import ProspectsView from './components/ProspectsView';
 import { AuditQueueView, DecksView, SentView, SettingsView } from './components/OtherViews';
-import { KeysProvider, useKeys } from './context/KeysContext';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { scrapeRestaurants } from './utils/scraper';
 import { auditBatch } from './utils/audit';
 import Onboarding from './components/Onboarding';
+import LoginScreen from './components/LoginScreen';
+import { loadRestaurants, saveRestaurants } from './lib/auth';
 
 const ONBOARDING_KEY = 'mesa_onboarding_done';
 
 function MesaApp() {
-  const { keys, restaurantStorageKey, searchLocation, locationLabel } = useKeys();
-  const [view,         setView]        = useState('prospects');
-  const [scraping,     setScraping]    = useState(false);
-  const [scrapeStatus, setScrapeStatus] = useState('');
-  const [scrapeError,  setScrapeError]  = useState(null);
-  const [auditing,     setAuditing]    = useState(false);
-  const [auditStatus,  setAuditStatus]  = useState('');
-  const [showOnboard,  setShowOnboard]  = useState(false);
+  const {
+    userId, settings, loading,
+    locationLabel, searchLocation, locationKey,
+    anthropicKey, openaiKey, apifyToken,
+  } = useAuth();
 
-  const [restaurants, setRestaurantsRaw] = useState(() => {
-    try {
-      const stored = localStorage.getItem(restaurantStorageKey());
-      return stored ? JSON.parse(stored) : [];
-    } catch { return []; }
-  });
+  const [view,          setView]         = useState('prospects');
+  const [restaurants,   setRestaurantsRaw] = useState([]);
+  const [restLoading,   setRestLoading]  = useState(false);
+  const [scraping,      setScraping]     = useState(false);
+  const [scrapeStatus,  setScrapeStatus] = useState('');
+  const [scrapeError,   setScrapeError]  = useState(null);
+  const [auditing,      setAuditing]     = useState(false);
+  const [auditStatus,   setAuditStatus]  = useState('');
+  const [showOnboard,   setShowOnboard]  = useState(false);
 
+  // Load restaurants from Supabase when userId or location changes
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem(restaurantStorageKey());
-      setRestaurantsRaw(stored ? JSON.parse(stored) : []);
-    } catch { setRestaurantsRaw([]); }
-  }, [keys.city, keys.state, keys.country]);
+    if (!userId) return;
+    const loc = locationKey();
+    if (!loc || loc === 'default') { setRestaurantsRaw([]); return; }
+    setRestLoading(true);
+    loadRestaurants(userId, loc)
+      .then(data => setRestaurantsRaw(Array.isArray(data) ? data : []))
+      .catch(() => setRestaurantsRaw([]))
+      .finally(() => setRestLoading(false));
+  }, [userId, settings?.city, settings?.state, settings?.country]);
 
+  // Show onboarding for new sessions
   useEffect(() => {
-    if (!localStorage.getItem(ONBOARDING_KEY)) setShowOnboard(true);
-  }, []);
+    if (userId && !sessionStorage.getItem(ONBOARDING_KEY)) {
+      setShowOnboard(true);
+    }
+  }, [userId]);
 
-  const setRestaurants = (data) => {
+  const setRestaurants = async (data) => {
     const resolved = typeof data === 'function' ? data(restaurants) : data;
     setRestaurantsRaw(resolved);
-    localStorage.setItem(restaurantStorageKey(), JSON.stringify(resolved));
+    if (userId) {
+      const loc = locationKey();
+      if (loc && loc !== 'default') {
+        saveRestaurants(userId, loc, resolved).catch(console.error);
+      }
+    }
   };
 
   const toggleSelect    = id      => setRestaurants(prev => prev.map(r => r.id === id ? { ...r, selected: !r.selected } : r));
@@ -50,29 +65,30 @@ function MesaApp() {
   const updateRestaurant = (id, u) => setRestaurants(prev => prev.map(r => r.id === id ? { ...r, ...u } : r));
 
   const handleScrape = async () => {
-    if (!keys.apifyToken) { setScrapeError('Add your Apify token in Settings first.'); return; }
+    if (!apifyToken)  { setScrapeError('Add your Apify token in Settings first.'); return; }
     const loc = searchLocation();
     if (!loc) { setScrapeError('Set a target location in Settings first.'); return; }
     setScraping(true); setScrapeError(null); setScrapeStatus('Starting...');
     try {
-      const results = await scrapeRestaurants(keys.apifyToken, loc, msg => setScrapeStatus(msg));
-      setRestaurants(results); setScrapeStatus('');
+      const results = await scrapeRestaurants(apifyToken, loc, msg => setScrapeStatus(msg));
+      await setRestaurants(results);
+      setScrapeStatus('');
     } catch (err) { setScrapeError(err.message); setScrapeStatus(''); }
     finally { setScraping(false); }
   };
 
   const handleRunAudit = async (selectedRestaurants) => {
-    if (!keys.anthropicKey) { alert('Add your Anthropic API key in Settings first.'); return; }
+    if (!anthropicKey) { alert('Anthropic API key missing — check Settings.'); return; }
     const toAudit = selectedRestaurants.map(r => ({ ...r }));
     setAuditing(true);
     setAuditStatus(`Starting audit for ${toAudit.length} restaurant${toAudit.length > 1 ? 's' : ''}...`);
     setView('audit');
-    setRestaurants(prev => prev.map(r => toAudit.find(s => s.id === r.id) ? { ...r, status: 'auditing' } : r));
+    await setRestaurants(prev => prev.map(r => toAudit.find(s => s.id === r.id) ? { ...r, status: 'auditing' } : r));
     try {
-      const results = await auditBatch(toAudit, keys.anthropicKey, (i, total, name) => {
+      const results = await auditBatch(toAudit, anthropicKey, (i, total, name) => {
         setAuditStatus(`Auditing ${name}... (${i + 1} of ${total})`);
       });
-      setRestaurants(prev => prev.map(r => {
+      await setRestaurants(prev => prev.map(r => {
         const res = results.find(x => x.id === r.id);
         if (!res) return r;
         return { ...r, audit: res.audit, status: res.status, selected: false };
@@ -81,9 +97,26 @@ function MesaApp() {
       if (failed.length) alert(`${results.length - failed.length} audited. ${failed.length} failed:\n${failed.map(f => `• ${f.error}`).join('\n')}`);
     } catch (err) {
       alert('Audit failed: ' + err.message);
-      setRestaurants(prev => prev.map(r => toAudit.find(s => s.id === r.id) ? { ...r, status: 'new' } : r));
+      await setRestaurants(prev => prev.map(r => toAudit.find(s => s.id === r.id) ? { ...r, status: 'new' } : r));
     } finally { setAuditing(false); setAuditStatus(''); }
   };
+
+  if (loading) {
+    return (
+      <div style={{ height: '100vh', background: '#0e0e0e', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 16 }}>
+        <svg width="52" height="52" viewBox="0 0 52 52" fill="none">
+          <circle cx="26" cy="26" r="22" stroke="#2a2a2a" strokeWidth="2"/>
+          <circle cx="26" cy="26" r="22" stroke="#c8b99a" strokeWidth="2" strokeLinecap="round"
+            strokeDasharray="36 102" style={{ transformOrigin: 'center', animation: 'spin 1.2s linear infinite' }}/>
+        </svg>
+        <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: '#5c5751', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+          Loading MESA
+        </div>
+      </div>
+    );
+  }
+
+  if (!userId) return <LoginScreen />;
 
   const counts = {
     total: restaurants.length,
@@ -107,10 +140,11 @@ function MesaApp() {
           scrapeError={scrapeError}
           onGoSettings={() => setView('settings')}
           locationLabel={locationLabel()}
+          restLoading={restLoading}
         />
       );
       case 'audit':    return <AuditQueueView restaurants={restaurants} auditing={auditing} auditStatus={auditStatus} />;
-      case 'decks':    return <DecksView restaurants={restaurants} onUpdateRestaurant={updateRestaurant} />;
+      case 'decks':    return <DecksView restaurants={restaurants} onUpdateRestaurant={updateRestaurant} userId={userId} />;
       case 'sent':     return <SentView restaurants={restaurants} />;
       case 'settings': return <SettingsView />;
       default:         return null;
@@ -119,18 +153,14 @@ function MesaApp() {
 
   return (
     <div style={{ height: '100vh', overflow: 'hidden', background: '#0e0e0e', display: 'flex', flexDirection: 'column' }}>
-      {/* Main content - padded bottom so floating nav doesn't overlap */}
       <div style={{ flex: 1, overflow: 'hidden', paddingBottom: 80 }}>
         {renderView()}
       </div>
-
-      {/* Floating bottom nav */}
       <FloatingNav active={view} onNav={setView} counts={counts} />
-
       {showOnboard && (
         <Onboarding
-          onDone={() => { localStorage.setItem(ONBOARDING_KEY, 'true'); setShowOnboard(false); }}
-          onGoSettings={() => { localStorage.setItem(ONBOARDING_KEY, 'true'); setShowOnboard(false); setView('settings'); }}
+          onDone={() => { sessionStorage.setItem(ONBOARDING_KEY, 'true'); setShowOnboard(false); }}
+          onGoSettings={() => { sessionStorage.setItem(ONBOARDING_KEY, 'true'); setShowOnboard(false); setView('settings'); }}
         />
       )}
     </div>
@@ -139,10 +169,10 @@ function MesaApp() {
 
 export default function App() {
   return (
-    <KeysProvider>
+    <AuthProvider>
       <ThemeProvider>
         <MesaApp />
       </ThemeProvider>
-    </KeysProvider>
+    </AuthProvider>
   );
 }
