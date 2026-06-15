@@ -82,22 +82,18 @@ export async function loadRestaurants(userId, locationKey) {
 }
 
 // Save restaurants (upsert whole list per location)
-// Guard: never overwrite existing data with an empty array
 export async function saveRestaurants(userId, locationKey, restaurants) {
-  if (!restaurants || restaurants.length === 0) {
-    // Don't overwrite existing data with empty — only save if there's nothing there yet
-    const existing = await loadRestaurants(userId, locationKey);
-    if (existing && existing.length > 0) return; // skip — would erase real data
-  }
-  const { error } = await supabase
+  const { error, data } = await supabase
     .from('mesa_restaurants')
     .upsert({
       user_id: userId,
       location_key: locationKey,
       data: restaurants,
       updated_at: new Date().toISOString(),
-    });
+    })
+    .select();
   if (error) throw new Error('Failed to save restaurants: ' + error.message);
+  return data;
 }
 
 // Load deck images for a restaurant
