@@ -53,10 +53,12 @@ export default function DeckModal({ restaurant, onClose, onUpdateRestaurant, use
   const handlePDF = async () => {
     setPdfBusy(true);
     try {
-      const doc = await generateDeckPDF(restaurant, images);
-      doc.save(`MESA_${restaurant.name.replace(/\s+/g,'_')}_deck.pdf`);
-    } catch (e) { alert('PDF failed: ' + e.message); }
-    finally { setPdfBusy(false); }
+      await generateDeckPDF(restaurant, images);
+    } catch (e) {
+      alert('PDF generation failed: ' + e.message + '\n\nMake sure the function has a 60s timeout set in Vercel.');
+    } finally {
+      setPdfBusy(false);
+    }
   };
 
   return (
@@ -73,7 +75,7 @@ export default function DeckModal({ restaurant, onClose, onUpdateRestaurant, use
             {hasImages && <BtnGhost onClick={handleGenerate}><RefreshIcon /> Regenerate</BtnGhost>}
             <BtnGold onClick={handlePDF} disabled={!hasImages || pdfBusy}>
               {pdfBusy ? <SpinIcon /> : <DownloadIcon />}
-              {pdfBusy ? 'Generating...' : 'Download PDF'}
+              {pdfBusy ? 'Generating PDF...' : 'Download PDF'}
             </BtnGold>
             <BtnGhost onClick={onClose} style={{ padding: '8px 10px' }}><CloseIcon /></BtnGhost>
           </div>
