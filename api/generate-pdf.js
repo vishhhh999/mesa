@@ -4,8 +4,9 @@ const puppeteer = require('puppeteer-core');
 module.exports = async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const { restaurant, images } = req.body;
+  const { restaurant, images, imageFormat } = req.body;
   if (!restaurant) return res.status(400).json({ error: 'No restaurant data' });
+  const mime = imageFormat === 'jpeg' ? 'image/jpeg' : 'image/png';
 
   let browser = null;
   try {
@@ -17,7 +18,7 @@ module.exports = async function handler(req, res) {
     });
 
     const page = await browser.newPage();
-    const html = buildDeckHTML(restaurant, images || []);
+    const html = buildDeckHTML(restaurant, images || [], mime);
     await page.setContent(html, { waitUntil: 'networkidle0' });
 
     const pdf = await page.pdf({
@@ -46,13 +47,13 @@ function extractColors(rebrandDirection) {
   };
 }
 
-function buildDeckHTML(restaurant, images) {
+function buildDeckHTML(restaurant, images, mime = 'image/png') {
   const { name, cuisine, area, audit } = restaurant;
   const colors = extractColors(audit?.rebrandDirection);
   const [heroImg, detailImg] = images;
 
-  const heroB64   = heroImg   ? `data:image/png;base64,${heroImg}`   : null;
-  const detailB64 = detailImg ? `data:image/png;base64,${detailImg}` : null;
+  const heroB64   = heroImg   ? `data:${mime};base64,${heroImg}`   : null;
+  const detailB64 = detailImg ? `data:${mime};base64,${detailImg}` : null;
 
   // Determine if primary color is dark (for contrast decisions)
   const isDark = (hex) => {
