@@ -82,7 +82,13 @@ export async function loadRestaurants(userId, locationKey) {
 }
 
 // Save restaurants (upsert whole list per location)
+// Guard: never overwrite existing data with an empty array
 export async function saveRestaurants(userId, locationKey, restaurants) {
+  if (!restaurants || restaurants.length === 0) {
+    // Don't overwrite existing data with empty — only save if there's nothing there yet
+    const existing = await loadRestaurants(userId, locationKey);
+    if (existing && existing.length > 0) return; // skip — would erase real data
+  }
   const { error } = await supabase
     .from('mesa_restaurants')
     .upsert({

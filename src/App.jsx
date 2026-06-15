@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import FloatingNav from './components/FloatingNav';
 import ProspectsView from './components/ProspectsView';
 import { AuditQueueView, DecksView, SentView, SettingsView } from './components/OtherViews';
@@ -12,57 +12,92 @@ import { loadRestaurants, saveRestaurants } from './lib/auth';
 
 const ONBOARDING_KEY = 'mesa_onboarding_done';
 
+// Fields that are UI-only and should NOT be persisted to Supabase
+const UI_ONLY_FIELDS = ['selected'];
+
+// Strip UI-only fields before saving
+function toPersistedRestaurant(r) {
+  const out = { ...r };
+  UI_ONLY_FIELDS.forEach(k => delete out[k]);
+  return out;
+}
+
 function MesaApp() {
   const {
     userId, settings, loading,
-    locationLabel, searchLocation, locationKey, dataKey,
-    anthropicKey, openaiKey, apifyToken, industry,
+    locationLabel, searchLocation, dataKey,
+    industry, anthropicKey, openaiKey, apifyToken,
   } = useAuth();
 
-  const [view,          setView]         = useState('prospects');
-  const [restaurants,   setRestaurantsRaw] = useState([]);
-  const [restLoading,   setRestLoading]  = useState(false);
-  const [scraping,      setScraping]     = useState(false);
-  const [scrapeStatus,  setScrapeStatus] = useState('');
-  const [scrapeError,   setScrapeError]  = useState(null);
-  const [auditing,      setAuditing]     = useState(false);
-  const [auditStatus,   setAuditStatus]  = useState('');
-  const [showOnboard,   setShowOnboard]  = useState(false);
+  const [view,         setView]        = useState('prospects');
+  const [restaurants,  setRestaurantsRaw] = useState([]);
+  const [restLoading,  setRestLoading] = useState(false);
+  const [scraping,     setScraping]    = useState(false);
+  const [scrapeStatus, setScrapeStatus] = useState('');
+  const [scrapeError,  setScrapeError]  = useState(null);
+  const [auditing,     setAuditing]    = useState(false);
+  const [auditStatus,  setAuditStatus]  = useState('');
+  const [showOnboard,  setShowOnboard]  = useState(false);
 
-  // Load restaurants from Supabase when userId, location, or industry changes
+  // Debounce Supabase saves to avoid hammering on rapid state changes
+  const saveTimer = useRef(null);
+  const saveToSupabase = useCallback((resolved) => {
+    if (!userId) return;
+    const key = dataKey();
+    if (!key || key === 'default') return;
+    clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => {
+      const toPersist = resolved.map(toPersistedRestaurant);
+      saveRestaurants(userId, key, toPersist).catch(err =>
+        console.error('Supabase save failed:', err)
+      );
+    }, 400); // 400ms debounce
+  }, [userId, dataKey]);
+
+  // Atomic state + save: always works from latest state
+  const setRestaurants = useCallback((updater) => {
+    setRestaurantsRaw(prev => {
+      const next = typeof updater === 'function' ? updater(prev) : updater;
+      saveToSupabase(next);
+      return next;
+    });
+  }, [saveToSupabase]);
+
+  // Load from Supabase when location/industry/user changes
   useEffect(() => {
     if (!userId) return;
     const key = dataKey();
-    if (!key || key.startsWith('default')) { setRestaurantsRaw([]); return; }
+    if (!key || key === 'default') { setRestaurantsRaw([]); return; }
     setRestLoading(true);
     loadRestaurants(userId, key)
-      .then(data => setRestaurantsRaw(Array.isArray(data) ? data : []))
-      .catch(() => setRestaurantsRaw([]))
+      .then(data => {
+        // Restore with selected: false (UI state is never persisted)
+        const withUI = (Array.isArray(data) ? data : []).map(r => ({ ...r, selected: false }));
+        setRestaurantsRaw(withUI);
+      })
+      .catch(err => { console.error('Load failed:', err); setRestaurantsRaw([]); })
       .finally(() => setRestLoading(false));
   }, [userId, settings?.city, settings?.state, settings?.country, settings?.industry]);
 
-  // Show onboarding for new sessions
   useEffect(() => {
-    if (userId && !sessionStorage.getItem(ONBOARDING_KEY)) {
-      setShowOnboard(true);
-    }
+    if (userId && !sessionStorage.getItem(ONBOARDING_KEY)) setShowOnboard(true);
   }, [userId]);
 
-  const setRestaurants = async (data) => {
-    const resolved = typeof data === 'function' ? data(restaurants) : data;
-    setRestaurantsRaw(resolved);
-    if (userId) {
-      const key = dataKey();
-      if (key && !key.startsWith('default')) {
-        saveRestaurants(userId, key, resolved).catch(console.error);
-      }
-    }
-  };
+  // UI-only mutations — update state but don't trigger Supabase save
+  const toggleSelect = useCallback(id =>
+    setRestaurantsRaw(prev => prev.map(r => r.id === id ? { ...r, selected: !r.selected } : r))
+  , []);
+  const selectAll   = useCallback(() =>
+    setRestaurantsRaw(prev => prev.map(r => ({ ...r, selected: true })))
+  , []);
+  const deselectAll = useCallback(() =>
+    setRestaurantsRaw(prev => prev.map(r => ({ ...r, selected: false })))
+  , []);
 
-  const toggleSelect     = id      => setRestaurants(prev => prev.map(r => r.id === id ? { ...r, selected: !r.selected } : r));
-  const selectAll        = ()      => setRestaurants(prev => prev.map(r => ({ ...r, selected: true })));
-  const deselectAll      = ()      => setRestaurants(prev => prev.map(r => ({ ...r, selected: false })));
-  const updateRestaurant = (id, u) => setRestaurants(prev => prev.map(r => r.id === id ? { ...r, ...u } : r));
+  // Persisted mutations — update state AND save to Supabase
+  const updateRestaurant = useCallback((id, updates) => {
+    setRestaurants(prev => prev.map(r => r.id === id ? { ...r, ...updates } : r));
+  }, [setRestaurants]);
 
   const handleScrape = async () => {
     if (!apifyToken) { setScrapeError('Add your Apify token in Settings first.'); return; }
@@ -73,7 +108,7 @@ function MesaApp() {
     setScraping(true); setScrapeError(null); setScrapeStatus('Starting...');
     try {
       const results = await scrapeRestaurants(apifyToken, query, msg => setScrapeStatus(msg));
-      await setRestaurants(results);
+      setRestaurants(results.map(r => ({ ...r, selected: false })));
       setScrapeStatus('');
     } catch (err) { setScrapeError(err.message); setScrapeStatus(''); }
     finally { setScraping(false); }
@@ -85,23 +120,34 @@ function MesaApp() {
     setAuditing(true);
     setAuditStatus(`Starting audit for ${toAudit.length} restaurant${toAudit.length > 1 ? 's' : ''}...`);
     setView('audit');
-    await setRestaurants(prev => prev.map(r => toAudit.find(s => s.id === r.id) ? { ...r, status: 'auditing' } : r));
+
+    // Mark as auditing in UI only (don't persist this transient state)
+    setRestaurantsRaw(prev => prev.map(r =>
+      toAudit.find(s => s.id === r.id) ? { ...r, status: 'auditing' } : r
+    ));
+
     try {
       const { getIndustry } = await import('./data/industries');
       const industryContext = getIndustry(industry).auditContext;
       const results = await auditBatch(toAudit, anthropicKey, (i, total, name) => {
         setAuditStatus(`Auditing ${name}... (${i + 1} of ${total})`);
       }, industryContext);
-      await setRestaurants(prev => prev.map(r => {
+
+      // Save audit results to Supabase
+      setRestaurants(prev => prev.map(r => {
         const res = results.find(x => x.id === r.id);
         if (!res) return r;
         return { ...r, audit: res.audit, status: res.status, selected: false };
       }));
+
       const failed = results.filter(r => r.error);
       if (failed.length) alert(`${results.length - failed.length} audited. ${failed.length} failed:\n${failed.map(f => `• ${f.error}`).join('\n')}`);
     } catch (err) {
       alert('Audit failed: ' + err.message);
-      await setRestaurants(prev => prev.map(r => toAudit.find(s => s.id === r.id) ? { ...r, status: 'new' } : r));
+      // Reset status but don't persist the failure
+      setRestaurantsRaw(prev => prev.map(r =>
+        toAudit.find(s => s.id === r.id) ? { ...r, status: 'new' } : r
+      ));
     } finally { setAuditing(false); setAuditStatus(''); }
   };
 
