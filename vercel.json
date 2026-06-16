@@ -1,4 +1,7 @@
 {
+  "rewrites": [
+    { "source": "/demo", "destination": "/index.html" }
+  ],
   "functions": {
     "api/generate-pdf.js": {
       "memory": 512,
